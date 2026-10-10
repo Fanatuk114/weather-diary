@@ -3,49 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Дневник самочувствия</title>
+    <title>Health & Weather Dashboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg: var(--tg-theme-bg-color, #121212);
+            --text: var(--tg-theme-text-color, #ffffff);
+            --hint: var(--tg-theme-hint-color, #aaaaaa);
+            --card: rgba(255, 255, 255, 0.07);
+        }
         body {
-            background-color: var(--tg-theme-bg-color, #121212);
-            color: var(--tg-theme-text-color, #ffffff);
+            background-color: var(--bg); color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0; padding: 20px;
-            display: flex; flex-direction: column; align-items: center;
+            margin: 0; padding: 15px; display: flex; flex-direction: column; gap: 15px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 20px; width: 100%; max-width: 400px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 20px; box-sizing: border-box;
+            background: var(--card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px; padding: 20px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1); box-sizing: border-box;
         }
-        h2 { margin-top: 0; text-align: center; font-size: 20px; }
-        .btn-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 15px; }
-        .btn {
-            flex: 1; padding: 15px 0; border-radius: 15px; border: none; font-size: 24px;
-            cursor: pointer; transition: transform 0.1s;
-        }
+        h2, h3 { margin: 0 0 10px 0; font-size: 18px; text-align: center; font-weight: 600; }
+        
+        /* Weather Section */
+        .weather-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .city { font-size: 16px; font-weight: bold; color: var(--hint); }
+        .temp-row { display: flex; align-items: center; gap: 15px; }
+        .temp { font-size: 42px; font-weight: 800; }
+        .weather-icon { font-size: 36px; }
+        .details { display: flex; justify-content: space-between; font-size: 14px; color: var(--hint); margin-top: 10px;}
+        
+        /* Storm Section */
+        .kp-value { font-size: 36px; font-weight: 800; text-align: center; }
+        .kp-text { text-align: center; font-size: 14px; color: var(--hint); }
+        .kp-good { color: #43e97b; } .kp-warn { color: #f6d365; } .kp-danger { color: #ff0844; }
+
+        /* Buttons */
+        .btn-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; }
+        .btn { flex: 1; padding: 15px 0; border-radius: 16px; border: none; cursor: pointer; transition: transform 0.1s; }
         .btn:active { transform: scale(0.95); }
         .btn-good { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
         .btn-normal { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
         .btn-bad { background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%); }
-        .title { font-size: 14px; font-weight: bold; color: #333; display: block; margin-top: 5px; }
+        .btn-icon { font-size: 24px; display: block; margin-bottom: 5px;}
+        .btn-text { font-size: 14px; font-weight: 700; color: #222; }
+        
+        #weather-card, #storm-card { display: none; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Как вы сейчас?</h2>
-        <div class="btn-row">
-            <button class="btn btn-good" onclick="send('good')">🟢<span class="title">Отлично</span></button>
-            <button class="btn btn-normal" onclick="send('normal')">🟡<span class="title">Нормально</span></button>
-            <button class="btn btn-bad" onclick="send('bad')">🔴<span class="title">Плохо</span></button>
+
+    <!-- Weather Widget -->
+    <div class="card" id="weather-card">
+        <div class="weather-top">
+            <div class="city" id="w-city">Локация...</div>
+        </div>
+        <div class="temp-row">
+            <div class="weather-icon" id="w-icon">☀️</div>
+            <div class="temp" id="w-temp">--°</div>
+        </div>
+        <div class="details">
+            <span id="w-desc">--</span>
+            <span id="w-press">-- мм рт.ст.</span>
         </div>
     </div>
 
+    <!-- Storm Widget -->
+    <div class="card" id="storm-card">
+        <h2>Магнитная обстановка</h2>
+        <div class="kp-value" id="kp-val">Kp --</div>
+        <div class="kp-text" id="kp-desc">--</div>
+    </div>
+
+    <!-- Diary Input -->
+    <div class="card">
+        <h2>Как вы сейчас?</h2>
+        <div class="btn-row">
+            <button class="btn btn-good" onclick="send('good')">
+                <span class="btn-icon">🟢</span><span class="btn-text">Отлично</span>
+            </button>
+            <button class="btn btn-normal" onclick="send('normal')">
+                <span class="btn-icon">🟡</span><span class="btn-text">Нормально</span>
+            </button>
+            <button class="btn btn-bad" onclick="send('bad')">
+                <span class="btn-icon">🔴</span><span class="btn-text">Плохо</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Chart -->
     <div class="card" style="padding: 15px 10px;">
         <canvas id="diaryChart"></canvas>
     </div>
@@ -56,49 +102,74 @@
         tg.ready();
 
         function send(status) {
-            // Отправляем данные обратно боту
             tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
             tg.close();
         }
 
-        // Получаем данные из ссылки от бота
         const hash = window.location.hash.substring(1);
         if (hash) {
             try {
-                const data = JSON.parse(decodeURIComponent(hash));
-                const ctx = document.getElementById('diaryChart').getContext('2d');
+                const payload = JSON.parse(decodeURIComponent(hash));
                 
-                const colors = data.map(d => {
-                    if(d.s === 'good') return '#43e97b';
-                    if(d.s === 'normal') return '#f6d365';
-                    return '#ff0844';
-                });
+                // 1. Render Weather
+                if (payload.w) {
+                    document.getElementById('weather-card').style.display = 'block';
+                    document.getElementById('w-city').innerText = '📍 ' + payload.w.city;
+                    document.getElementById('w-icon').innerText = payload.w.icon;
+                    document.getElementById('w-temp').innerText = payload.w.t > 0 ? '+' + payload.w.t + '°' : payload.w.t + '°';
+                    document.getElementById('w-desc').innerText = payload.w.desc;
+                    document.getElementById('w-press').innerText = payload.w.p + ' мм рт.ст.';
+                }
 
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.map(d => d.t),
-                        datasets: [{
-                            label: 'Уровень бури (Kp)',
-                            data: data.map(d => d.k),
-                            borderColor: 'rgba(255, 255, 255, 0.2)',
-                            pointBackgroundColor: colors,
-                            pointBorderColor: '#fff',
-                            pointRadius: 6,
-                            pointHoverRadius: 8,
-                            borderWidth: 2,
-                            tension: 0.3
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: { min: 0, max: 9, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
-                            x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)' } }
+                // 2. Render Storm
+                if (payload.kp) {
+                    document.getElementById('storm-card').style.display = 'block';
+                    const kpVal = payload.kp.val;
+                    const elVal = document.getElementById('kp-val');
+                    elVal.innerText = 'Kp ' + kpVal.toFixed(1);
+                    document.getElementById('kp-desc').innerText = payload.kp.text;
+                    
+                    if (kpVal >= 5) elVal.className = 'kp-value kp-danger';
+                    else if (kpVal >= 4) elVal.className = 'kp-value kp-warn';
+                    else elVal.className = 'kp-value kp-good';
+                }
+
+                // 3. Render Chart
+                if (payload.d && payload.d.length > 0) {
+                    const data = payload.d;
+                    const ctx = document.getElementById('diaryChart').getContext('2d');
+                    const colors = data.map(d => {
+                        if(d.s === 'good') return '#43e97b';
+                        if(d.s === 'normal') return '#f6d365';
+                        return '#ff0844';
+                    });
+
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.map(d => d.t),
+                            datasets: [{
+                                label: 'Уровень бури (Kp)',
+                                data: data.map(d => d.k),
+                                borderColor: 'rgba(255, 255, 255, 0.2)',
+                                pointBackgroundColor: colors,
+                                pointBorderColor: '#fff',
+                                pointRadius: 6,
+                                pointHoverRadius: 8,
+                                borderWidth: 2,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { min: 0, max: 9, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
+                                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)' } }
+                            }
                         }
-                    }
-                });
+                    });
+                }
             } catch (e) {
                 console.error(e);
             }
