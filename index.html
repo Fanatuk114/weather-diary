@@ -32,12 +32,9 @@
         .btn-text { font-size: 14px; font-weight: 700; color: #222; }
         
         #weather-card, #storm-card { display: none; }
-        #debug { color: #ff5555; font-size: 11px; word-wrap: break-word; font-family: monospace; }
     </style>
 </head>
 <body>
-    <div id="debug">Инициализация...</div>
-
     <div class="card" id="weather-card">
         <div class="weather-top"><div class="city" id="w-city"></div></div>
         <div class="temp-row"><div class="weather-icon" id="w-icon"></div><div class="temp" id="w-temp"></div></div>
@@ -74,16 +71,12 @@
         }
 
         try {
-            const hash = window.location.hash.substring(1);
-            let dbg = document.getElementById('debug');
-            dbg.innerText = "Hash len: " + hash.length + "\n";
+            // Читаем чистые параметры, которые прислал бот
+            const urlParams = new URLSearchParams(window.location.search);
+            const rawData = urlParams.get('d');
             
-            if (hash) {
-                const payload = JSON.parse(decodeURIComponent(hash));
-                dbg.innerText += "Parsed JSON successfully!\n";
-                dbg.innerText += "Has weather: " + !!payload.w + "\n";
-                dbg.innerText += "Has kp: " + !!payload.kp + "\n";
-                dbg.innerText += "Diary records: " + (payload.d ? payload.d.length : 0) + "\n";
+            if (rawData) {
+                const payload = JSON.parse(rawData);
                 
                 if (payload.w) {
                     document.getElementById('weather-card').style.display = 'block';
@@ -138,11 +131,9 @@
                         }
                     });
                 }
-                // Если всё прошло успешно, скрываем текст отладки
-                setTimeout(() => { dbg.style.display = 'none'; }, 5000);
             }
         } catch (e) {
-            document.getElementById('debug').innerText += "\nERROR: " + e.message + "\n" + e.stack;
+            console.error("Parse error:", e);
         }
     </script>
 </body>
