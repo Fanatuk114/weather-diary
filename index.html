@@ -412,6 +412,11 @@
             color: #fff;
         }
 
+        .btn-modal-copy {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+        }
+
     </style>
 </head>
 <body>
@@ -478,12 +483,16 @@
                 <button class="btn-modal-close" onclick="closeStoryModal()">✕</button>
             </div>
             <img id="story-preview-img" class="story-img-preview" alt="Preview">
-            <div style="font-size: 12px; color: var(--hint); text-align: center; margin-top: -2px; line-height: 1.3;">
-                💡 Нажмите и удерживайте картинку пальцем, чтобы сохранить в фото
+            
+            <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; text-align: center; line-height: 1.45;">
+                📱 <b>На телефоне:</b> удерживайте палец на картинке → «Сохранить в Фото»<br>
+                💻 <b>На ПК:</b> правый клик по картинке → «Сохранить изображение как»
             </div>
+
             <div class="modal-btn-row">
-                <button class="btn-modal-action btn-modal-tg-story" onclick="sendStoryToChat()">📩 Прислать в чат (для Stories)</button>
-                <button class="btn-modal-action btn-modal-download" onclick="downloadStoryImage()">📥 Скачать файл</button>
+                <button class="btn-modal-action btn-modal-tg-story" onclick="sendStoryToChat()">📩 Прислать фото в чат (для Stories)</button>
+                <button class="btn-modal-action btn-modal-copy" onclick="copyStoryToClipboard()">📋 Скопировать картинку (Ctrl+V)</button>
+                <button class="btn-modal-action btn-modal-download" onclick="downloadStoryImage()">📥 Скачать файл на устройство</button>
             </div>
         </div>
     </div>
@@ -882,6 +891,25 @@
             document.getElementById('story-modal').classList.remove('active');
         }
 
+        function copyStoryToClipboard() {
+            triggerHaptic('medium');
+            const canvas = document.getElementById('storyCanvas');
+            if (navigator.clipboard && window.ClipboardItem) {
+                canvas.toBlob(blob => {
+                    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                        .then(() => {
+                            triggerHaptic('success');
+                            alert('✅ Карточка скопирована в буфер обмена!\nНажмите Ctrl+V для вставки.');
+                        })
+                        .catch(() => {
+                            alert('💡 Нажмите правой кнопкой мыши по картинке выше -> «Копировать изображение».');
+                        });
+                }, 'image/png');
+            } else {
+                alert('💡 Нажмите правой кнопкой мыши по картинке выше -> «Копировать изображение».');
+            }
+        }
+
         function downloadStoryImage() {
             triggerHaptic('success');
             const canvas = document.getElementById('storyCanvas');
@@ -903,23 +931,15 @@
                 a.download = 'weather_story.png';
                 a.click();
             }
+            
+            setTimeout(() => {
+                alert("💡 Если загрузка заблокирована клиентом Telegram:\n\n• Нажмите синюю кнопку «Прислать фото в чат» — бот сразу отправит файл вам в диалог!\n• Или зажмите картинку пальцем на экране (на ПК — правый клик) для сохранения.");
+            }, 600);
         }
 
         function sendStoryToChat() {
             triggerHaptic('medium');
             const botUser = (payloadData && payloadData.bot) ? payloadData.bot.replace('@', '') : "magni_buriBot";
-            const isReply = payloadData && payloadData.src === 'reply';
-            
-            if (isReply) {
-                try {
-                    tg.sendData(JSON.stringify({ action: 'send_story_card' }));
-                    tg.close();
-                    return;
-                } catch (e) {
-                    console.warn("sendData failed, falling back to deep link:", e);
-                }
-            }
-
             const link = "https://t.me/" + botUser + "?start=story_card";
             try {
                 if (tg && typeof tg.openTelegramLink === 'function') {
