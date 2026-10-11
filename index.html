@@ -378,6 +378,10 @@
             border-radius: 14px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.4);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            user-select: auto;
+            -webkit-user-select: auto;
+            -webkit-touch-callout: default;
+            pointer-events: auto;
         }
 
         .modal-btn-row {
@@ -552,8 +556,34 @@
         }
 
         function send(status) {
-            tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
-            tg.close();
+            const botUser = (payloadData && payloadData.bot) ? payloadData.bot.replace('@', '') : "magni_buriBot";
+            const isReply = payloadData && payloadData.src === 'reply';
+            
+            if (isReply) {
+                try {
+                    tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
+                    tg.close();
+                    return;
+                } catch (e) {
+                    console.warn("sendData failed, falling back to deep link:", e);
+                }
+            }
+
+            // Universal deep link: works 100% when opened from Inline Keyboard or Direct Link
+            const link = "https://t.me/" + botUser + "?start=log_" + status;
+            try {
+                if (tg && typeof tg.openTelegramLink === 'function') {
+                    tg.openTelegramLink(link);
+                } else {
+                    window.location.href = link;
+                }
+            } catch (e) {
+                window.location.href = link;
+            }
+            
+            setTimeout(() => {
+                try { tg.close(); } catch (e) {}
+            }, 100);
         }
         
         function shareApp() {
@@ -877,8 +907,33 @@
 
         function sendStoryToChat() {
             triggerHaptic('medium');
-            tg.sendData(JSON.stringify({ action: 'send_story_card' }));
-            tg.close();
+            const botUser = (payloadData && payloadData.bot) ? payloadData.bot.replace('@', '') : "magni_buriBot";
+            const isReply = payloadData && payloadData.src === 'reply';
+            
+            if (isReply) {
+                try {
+                    tg.sendData(JSON.stringify({ action: 'send_story_card' }));
+                    tg.close();
+                    return;
+                } catch (e) {
+                    console.warn("sendData failed, falling back to deep link:", e);
+                }
+            }
+
+            const link = "https://t.me/" + botUser + "?start=story_card";
+            try {
+                if (tg && typeof tg.openTelegramLink === 'function') {
+                    tg.openTelegramLink(link);
+                } else {
+                    window.location.href = link;
+                }
+            } catch (e) {
+                window.location.href = link;
+            }
+
+            setTimeout(() => {
+                try { tg.close(); } catch (e) {}
+            }, 100);
         }
 
         // Initial Data Load
