@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Health & Weather Dashboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
     <style>
         :root {
             --bg: var(--tg-theme-bg-color, #121214);
@@ -412,11 +412,6 @@
             color: #fff;
         }
 
-        .btn-modal-copy {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff;
-        }
-
     </style>
 </head>
 <body>
@@ -483,16 +478,12 @@
                 <button class="btn-modal-close" onclick="closeStoryModal()">✕</button>
             </div>
             <img id="story-preview-img" class="story-img-preview" alt="Preview">
-            
-            <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; text-align: center; line-height: 1.45;">
-                📱 <b>На телефоне:</b> удерживайте палец на картинке → «Сохранить в Фото»<br>
-                💻 <b>На ПК:</b> правый клик по картинке → «Сохранить изображение как»
+            <div style="font-size: 12px; color: var(--hint); text-align: center; margin-top: -2px; line-height: 1.3;">
+                💡 Нажмите и удерживайте картинку пальцем, чтобы сохранить в фото
             </div>
-
             <div class="modal-btn-row">
-                <button class="btn-modal-action btn-modal-tg-story" onclick="sendStoryToChat()">📩 Прислать фото в чат (для Stories)</button>
-                <button class="btn-modal-action btn-modal-copy" onclick="copyStoryToClipboard()">📋 Скопировать картинку (Ctrl+V)</button>
-                <button class="btn-modal-action btn-modal-download" onclick="downloadStoryImage()">📥 Скачать файл на устройство</button>
+                <button class="btn-modal-action btn-modal-tg-story" onclick="sendStoryToChat()">📩 Прислать в чат (для Stories)</button>
+                <button class="btn-modal-action btn-modal-download" onclick="downloadStoryImage()">📥 Скачать файл</button>
             </div>
         </div>
     </div>
@@ -615,42 +606,68 @@
         function renderWeather(w) {
             if (!w) return;
             document.getElementById('weather-card').style.display = 'block';
-            document.getElementById('w-city').innerText = '📍 ' + (w.city || 'Ваш город');
-            document.getElementById('w-icon').innerText = w.icon || '⛅';
-            const t = Math.round(w.t);
-            document.getElementById('w-temp').innerText = t > 0 ? '+' + t + '°' : t + '°';
-            document.getElementById('w-desc').innerText = w.desc || '';
-            
-            let pressHtml = (w.p ? w.p + ' мм рт.ст.' : '');
-            if (w.is_saw) {
-                pressHtml += ' <span class="press-badge saw">⚠️ Барическая пила</span>';
-            } else if (w.p) {
-                pressHtml += ' <span class="press-badge stable">✅ Стабильно</span>';
+            document.getElementById('w-city').textContent = '📍 ' + (w.city || 'Ваш город');
+            document.getElementById('w-icon').textContent = w.icon || '⛅';
+            const t = Number(w.t);
+            document.getElementById('w-temp').textContent = (w.t === undefined || w.t === null || isNaN(t))
+                ? '—' : (Math.round(t) > 0 ? '+' + Math.round(t) + '°' : Math.round(t) + '°');
+            document.getElementById('w-desc').textContent = w.desc || '';
+
+            // Давление собираем через DOM, без innerHTML (данные приходят из URL)
+            const press = document.getElementById('w-press');
+            press.textContent = '';
+            const p = Number(w.p);
+            if (w.p && !isNaN(p)) {
+                press.append(p + ' мм рт.ст. ');
+                const badge = document.createElement('span');
+                badge.className = 'press-badge ' + (w.is_saw ? 'saw' : 'stable');
+                badge.textContent = w.is_saw ? '⚠️ Барическая пила' : '✅ Стабильно';
+                press.append(badge);
             }
-            document.getElementById('w-press').innerHTML = pressHtml;
         }
 
+        // Те же границы, что и в боте: Kp округляется до целого, G1 = Kp 5
+        function kpInt(kp) { return Math.floor(kp + 0.5); }
+
         function kpDescription(kp) {
-            if (kp < 4) return '🟢 Спокойное поле (бури нет)';
-            if (kp < 5) return '🟡 Небольшие возмущения (G0)';
-            if (kp < 6) return '🟠 Слабая буря (G1)';
-            if (kp < 7) return '🟠 Умеренная буря (G2)';
-            if (kp < 8) return '🔴 Сильная буря (G3)';
-            return '🔴 Очень сильный геошторм (G4+)';
+            const k = kpInt(kp);
+            if (k < 4) return '🟢 Спокойное поле (бури нет)';
+            if (k === 4) return '🟡 Слабые возмущения';
+            if (k === 5) return '🟠 Слабая буря (G1)';
+            if (k === 6) return '🟠 Умеренная буря (G2)';
+            if (k === 7) return '🔴 Сильная буря (G3)';
+            if (k === 8) return '🔴 Жёсткая буря (G4)';
+            return '🟣 Экстремальная буря (G5)';
         }
 
         function renderStorm(kp) {
             if (!kp && kp !== 0) return;
+            const val = Number(typeof kp === 'object' ? kp.val : kp);
+            if (isNaN(val)) return;
             document.getElementById('storm-card').style.display = 'block';
-            const val = typeof kp === 'object' ? kp.val : kp;
-            const text = typeof kp === 'object' ? (kp.text || kpDescription(val)) : kpDescription(val);
-            
             const elVal = document.getElementById('kp-val');
-            elVal.innerText = 'Kp ' + Number(val).toFixed(1);
-            document.getElementById('kp-desc').innerText = text;
-            if (val >= 5) elVal.className = 'kp-value kp-danger';
-            else if (val >= 4) elVal.className = 'kp-value kp-warn';
+            elVal.textContent = 'Kp ' + val.toFixed(1);
+            document.getElementById('kp-desc').textContent = kpDescription(val);
+            const k = kpInt(val);
+            if (k >= 5) elVal.className = 'kp-value kp-danger';
+            else if (k >= 4) elVal.className = 'kp-value kp-warn';
             else elVal.className = 'kp-value kp-good';
+        }
+
+        // WMO weather_code (Open-Meteo) -> иконка и описание
+        function wmoInfo(code) {
+            if (code === 0) return ['☀️', 'Ясно'];
+            if (code === 1) return ['🌤', 'Малооблачно'];
+            if (code === 2) return ['⛅', 'Переменная облачность'];
+            if (code === 3) return ['☁️', 'Пасмурно'];
+            if (code === 45 || code === 48) return ['🌫', 'Туман'];
+            if (code >= 51 && code <= 57) return ['🌦', 'Морось'];
+            if (code >= 61 && code <= 67) return ['🌧', 'Дождь'];
+            if (code >= 71 && code <= 77) return ['❄️', 'Снег'];
+            if (code >= 80 && code <= 82) return ['🌧', 'Ливень'];
+            if (code === 85 || code === 86) return ['🌨', 'Снегопад'];
+            if (code >= 95) return ['⛈', 'Гроза'];
+            return ['⛅', ''];
         }
 
         function renderChart(entries) {
@@ -692,45 +709,63 @@
             });
         }
 
+        // Kp из того же файла, что использует бот: последний период, который уже начался.
+        // Поддерживаются оба формата NOAA: список списков и список объектов.
+        function latestKp(data) {
+            if (!Array.isArray(data) || data.length < 2) return NaN;
+            let rows;
+            if (Array.isArray(data[0])) {
+                const head = data[0].map(h => String(h).toLowerCase());
+                rows = data.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+            } else {
+                rows = data.map(o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.toLowerCase(), v])));
+            }
+            const now = Date.now();
+            let best = null;
+            for (const r of rows) {
+                const ts = Date.parse(String(r.time_tag).replace(' ', 'T').slice(0, 19) + 'Z');
+                if (!isNaN(ts) && ts <= now && (!best || ts > best.ts)) best = { ts, kp: parseFloat(r.kp) };
+            }
+            return best ? best.kp : NaN;
+        }
+
         // Live API Fetch for real-time online refresh
         async function fetchLiveUpdates() {
             let updated = false;
-            // 1. NOAA SWPC Planetary K-index (CORS supported)
             try {
-                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json?_t=" + Date.now());
-                const data = await res.json();
-                if (data && data.length > 1) {
-                    const lastRow = data[data.length - 1];
-                    const kpVal = parseFloat(lastRow[1]);
-                    if (!isNaN(kpVal)) {
-                        renderStorm(kpVal);
-                        updated = true;
-                    }
+                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json?_t=" + Date.now());
+                const kpVal = latestKp(await res.json());
+                if (!isNaN(kpVal)) {
+                    renderStorm(kpVal);
+                    updated = true;
                 }
             } catch (err) {
                 console.warn("NOAA fetch error:", err);
             }
 
-            // 2. Open-Meteo Weather
             const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
             const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,weather_code&_t=${Date.now()}`;
+                // pressure_msl — давление, приведённое к уровню моря, как в боте (а не surface_pressure)
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,weather_code&_t=${Date.now()}`;
                 const res = await fetch(url);
                 const wData = await res.json();
-                if (wData && wData.current) {
+                if (wData && wData.current && wData.current.temperature_2m !== undefined) {
                     const cur = wData.current;
-                    const mmhgPress = Math.round((cur.surface_pressure || 1013) * 0.750062);
                     if (!payloadData) payloadData = {};
-                    if (!payloadData.w) payloadData.w = { city: 'Москва', lat: lat, lon: lon };
+                    if (!payloadData.w) payloadData.w = { city: 'Ваш город', lat: lat, lon: lon };
                     payloadData.w.t = cur.temperature_2m;
-                    payloadData.w.p = mmhgPress;
+                    if (cur.pressure_msl) payloadData.w.p = Math.round(cur.pressure_msl * 0.750062);
+                    const info = wmoInfo(cur.weather_code);
+                    payloadData.w.icon = info[0];
+                    payloadData.w.desc = info[1];
                     renderWeather(payloadData.w);
                     updated = true;
                 }
             } catch (err) {
                 console.warn("Weather fetch error:", err);
             }
+            if (updated) updateSyncBadge("Обновлено онлайн ✨");
             return updated;
         }
 
@@ -741,9 +776,9 @@
             updateSyncBadge("Обновление...");
             
             try {
-                await fetchLiveUpdates();
-                triggerHaptic('success');
-                updateSyncBadge("Обновлено онлайн ✨");
+                const ok = await fetchLiveUpdates();
+                triggerHaptic(ok ? 'success' : 'error');
+                if (!ok) updateSyncBadge("Нет связи, показаны данные из бота");
             } catch (e) {
                 triggerHaptic('error');
                 updateSyncBadge("Сбой сети");
@@ -891,25 +926,6 @@
             document.getElementById('story-modal').classList.remove('active');
         }
 
-        function copyStoryToClipboard() {
-            triggerHaptic('medium');
-            const canvas = document.getElementById('storyCanvas');
-            if (navigator.clipboard && window.ClipboardItem) {
-                canvas.toBlob(blob => {
-                    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-                        .then(() => {
-                            triggerHaptic('success');
-                            alert('✅ Карточка скопирована в буфер обмена!\nНажмите Ctrl+V для вставки.');
-                        })
-                        .catch(() => {
-                            alert('💡 Нажмите правой кнопкой мыши по картинке выше -> «Копировать изображение».');
-                        });
-                }, 'image/png');
-            } else {
-                alert('💡 Нажмите правой кнопкой мыши по картинке выше -> «Копировать изображение».');
-            }
-        }
-
         function downloadStoryImage() {
             triggerHaptic('success');
             const canvas = document.getElementById('storyCanvas');
@@ -931,15 +947,23 @@
                 a.download = 'weather_story.png';
                 a.click();
             }
-            
-            setTimeout(() => {
-                alert("💡 Если загрузка заблокирована клиентом Telegram:\n\n• Нажмите синюю кнопку «Прислать фото в чат» — бот сразу отправит файл вам в диалог!\n• Или зажмите картинку пальцем на экране (на ПК — правый клик) для сохранения.");
-            }, 600);
         }
 
         function sendStoryToChat() {
             triggerHaptic('medium');
             const botUser = (payloadData && payloadData.bot) ? payloadData.bot.replace('@', '') : "magni_buriBot";
+            const isReply = payloadData && payloadData.src === 'reply';
+            
+            if (isReply) {
+                try {
+                    tg.sendData(JSON.stringify({ action: 'send_story_card' }));
+                    tg.close();
+                    return;
+                } catch (e) {
+                    console.warn("sendData failed, falling back to deep link:", e);
+                }
+            }
+
             const link = "https://t.me/" + botUser + "?start=story_card";
             try {
                 if (tg && typeof tg.openTelegramLink === 'function') {
@@ -957,54 +981,43 @@
         }
 
         // Initial Data Load
+        const FALLBACK_TIPS = [
+            '💧 Пейте больше чистой воды.',
+            '🧘 Избегайте тяжелых физических нагрузок сегодня.',
+            '☕ Откажитесь от кофе и крепкого чая.',
+            '🛌 Постарайтесь больше отдыхать и лечь спать пораньше.'
+        ];
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const rawData = urlParams.get('d');
-            
+
             if (rawData) {
                 payloadData = JSON.parse(rawData);
-                
-                if (payloadData.w) {
-                    renderWeather(payloadData.w);
-                } else {
-                    manualRefresh();
-                }
-
-                if (payloadData.kp) {
-                    renderStorm(payloadData.kp);
-                } else {
-                    manualRefresh();
-                }
+                if (payloadData.w) renderWeather(payloadData.w);
+                if (payloadData.kp) renderStorm(payloadData.kp);
 
                 if (payloadData.a) {
                     const elA = document.getElementById('analytics-text');
-                    elA.innerText = payloadData.a;
+                    elA.textContent = payloadData.a;
                     elA.style.display = 'block';
                 }
-                
-                if (payloadData.tip) {
-                    const elTip = document.getElementById('tip-text');
-                    elTip.innerText = "💡 " + payloadData.tip;
-                    elTip.style.display = 'block';
-                }
 
-                if (payloadData.d && payloadData.d.length > 0) {
-                    renderChart(payloadData.d);
-                }
+                const elTip = document.getElementById('tip-text');
+                elTip.textContent = "💡 " + (payloadData.tip || FALLBACK_TIPS[Math.floor(Math.random() * FALLBACK_TIPS.length)]);
+                elTip.style.display = 'block';
 
-                if (payloadData.cd && payloadData.cd.active) {
-                    updateCooldownState();
-                }
+                if (payloadData.d && payloadData.d.length > 0) renderChart(payloadData.d);
+                if (payloadData.cd && payloadData.cd.active) updateCooldownState();
 
-                updateSyncBadge("Актуально");
+                updateSyncBadge("Данные из бота, обновляю…");
             } else {
-                // If opened without payload, try live fetch
-                manualRefresh();
+                updateSyncBadge("Загрузка…");
             }
         } catch (e) {
             console.error("Initialization error:", e);
-            manualRefresh();
         }
+        // Всегда подтягиваем свежие погоду и Kp: кэш бота и ссылка на кнопке могут быть старыми
+        manualRefresh();
 
         // Real-time cooldown countdown ticker every 5 seconds
         setInterval(updateCooldownState, 5000);
