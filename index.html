@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Health & Weather Dashboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --bg: var(--tg-theme-bg-color, #121214);
@@ -521,9 +521,13 @@
         function updateCooldownState() {
             if (!payloadData || !payloadData.cd) return;
             
+            const nowSec = Math.floor(Date.now() / 1000);
+            if (!payloadData.cd.until && payloadData.cd.rem_min > 0) {
+                payloadData.cd.until = nowSec + (payloadData.cd.rem_min * 60);
+            }
+
             let remSec = 0;
             if (payloadData.cd.until) {
-                const nowSec = Math.floor(Date.now() / 1000);
                 remSec = payloadData.cd.until - nowSec;
             } else if (payloadData.cd.rem_min) {
                 remSec = payloadData.cd.rem_min * 60;
@@ -617,26 +621,43 @@
             document.getElementById('weather-card').style.display = 'block';
             document.getElementById('w-city').innerText = '📍 ' + (w.city || 'Ваш город');
             document.getElementById('w-icon').innerText = w.icon || '⛅';
-            const t = Math.round(w.t);
+            const t = Math.round(Number(w.t) || 0);
             document.getElementById('w-temp').innerText = t > 0 ? '+' + t + '°' : t + '°';
             document.getElementById('w-desc').innerText = w.desc || '';
             
-            let pressHtml = (w.p ? w.p + ' мм рт.ст.' : '');
+            const pVal = Number(w.p);
+            let pressHtml = (!isNaN(pVal) && pVal > 0) ? `${Math.round(pVal)} мм рт. ст.` : '';
             if (w.is_saw) {
                 pressHtml += ' <span class="press-badge saw">⚠️ Барическая пила</span>';
-            } else if (w.p) {
+            } else if (pressHtml) {
                 pressHtml += ' <span class="press-badge stable">✅ Стабильно</span>';
             }
             document.getElementById('w-press').innerHTML = pressHtml;
         }
 
         function kpDescription(kp) {
-            if (kp < 4) return '🟢 Спокойное поле (бури нет)';
-            if (kp < 5) return '🟡 Небольшие возмущения (G0)';
-            if (kp < 6) return '🟠 Слабая буря (G1)';
-            if (kp < 7) return '🟠 Умеренная буря (G2)';
-            if (kp < 8) return '🔴 Сильная буря (G3)';
-            return '🔴 Очень сильный геошторм (G4+)';
+            const k = Math.round(Number(kp) || 0);
+            if (k < 4) return '🟢 Спокойное поле (бури нет)';
+            if (k === 4) return '🟡 Небольшие возмущения';
+            if (k === 5) return '🟠 G1 — слабая буря';
+            if (k === 6) return '🟠 G2 — умеренная буря';
+            if (k === 7) return '🔴 G3 — сильная буря';
+            if (k === 8) return '🔴 G4 — жёсткая буря';
+            return '🟣 G5 — экстремальная буря';
+        }
+
+        function wmoWeather(code) {
+            if (code === 0) return { icon: '☀️', desc: 'Ясно' };
+            if (code === 1 || code === 2) return { icon: '🌤', desc: 'Переменная облачность' };
+            if (code === 3) return { icon: '☁️', desc: 'Пасмурно' };
+            if (code === 45 || code === 48) return { icon: '🌫', desc: 'Туман' };
+            if (code >= 51 && code <= 55) return { icon: '🌦', desc: 'Морось' };
+            if (code >= 61 && code <= 65) return { icon: '🌧', desc: 'Дождь' };
+            if (code >= 71 && code <= 77) return { icon: '❄️', desc: 'Снег' };
+            if (code >= 80 && code <= 82) return { icon: '🌧', desc: 'Ливень' };
+            if (code >= 85 && code <= 86) return { icon: '🌨', desc: 'Снегопад' };
+            if (code >= 95) return { icon: '⛈', desc: 'Гроза' };
+            return { icon: '⛅', desc: 'Облачно' };
         }
 
         function renderStorm(kp) {
@@ -701,7 +722,12 @@
                 const data = await res.json();
                 if (data && data.length > 1) {
                     const lastRow = data[data.length - 1];
-                    const kpVal = parseFloat(lastRow[1]);
+                    let kpVal = NaN;
+                    if (Array.isArray(lastRow)) {
+                        kpVal = parseFloat(lastRow[1]);
+                    } else if (typeof lastRow === 'object' && lastRow !== null) {
+                        kpVal = parseFloat(lastRow.kp || lastRow.Kp);
+                    }
                     if (!isNaN(kpVal)) {
                         renderStorm(kpVal);
                         updated = true;
@@ -711,20 +737,25 @@
                 console.warn("NOAA fetch error:", err);
             }
 
-            // 2. Open-Meteo Weather
+            // 2. Open-Meteo Weather (use pressure_msl for sea-level reduced atmospheric pressure)
             const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
             const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,weather_code&_t=${Date.now()}`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,weather_code&_t=${Date.now()}`;
                 const res = await fetch(url);
                 const wData = await res.json();
                 if (wData && wData.current) {
                     const cur = wData.current;
-                    const mmhgPress = Math.round((cur.surface_pressure || 1013) * 0.750062);
+                    const mmhgPress = Math.round((cur.pressure_msl || 1013) * 0.750062);
                     if (!payloadData) payloadData = {};
                     if (!payloadData.w) payloadData.w = { city: 'Москва', lat: lat, lon: lon };
                     payloadData.w.t = cur.temperature_2m;
                     payloadData.w.p = mmhgPress;
+                    if (cur.weather_code !== undefined) {
+                        const wm = wmoWeather(cur.weather_code);
+                        payloadData.w.icon = wm.icon;
+                        payloadData.w.desc = wm.desc;
+                    }
                     renderWeather(payloadData.w);
                     updated = true;
                 }
