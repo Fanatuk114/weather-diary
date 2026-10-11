@@ -293,12 +293,16 @@
     </div>
 
     <!-- Health Log Card -->
-    <div class="card">
+    <div class="card" id="health-card">
         <h2>Как вы сейчас?</h2>
-        <div class="btn-row">
-            <button class="btn btn-good" onclick="send('good')"><span class="btn-icon">🟢</span><span class="btn-text">Отлично</span></button>
-            <button class="btn btn-normal" onclick="send('normal')"><span class="btn-icon">🟡</span><span class="btn-text">Нормально</span></button>
-            <button class="btn btn-bad" onclick="send('bad')"><span class="btn-icon">🔴</span><span class="btn-text">Плохо</span></button>
+        <div id="cooldown-banner" style="display: none; background: rgba(246, 211, 101, 0.12); border: 1px solid rgba(246, 211, 101, 0.3); border-radius: 12px; padding: 10px; font-size: 13.5px; text-align: center; color: var(--warning); margin-bottom: 12px; line-height: 1.4;">
+            ⏳ <b>Вы уже отметили самочувствие!</b><br>
+            <span id="cooldown-timer" style="font-size: 12px; opacity: 0.85;"></span>
+        </div>
+        <div class="btn-row" id="health-btn-row">
+            <button class="btn btn-good" onclick="handleSend('good')"><span class="btn-icon">🟢</span><span class="btn-text">Отлично</span></button>
+            <button class="btn btn-normal" onclick="handleSend('normal')"><span class="btn-icon">🟡</span><span class="btn-text">Нормально</span></button>
+            <button class="btn btn-bad" onclick="handleSend('bad')"><span class="btn-icon">🔴</span><span class="btn-text">Плохо</span></button>
         </div>
     </div>
 
@@ -319,6 +323,15 @@
 
         let payloadData = null;
         let chartInstance = null;
+
+        function handleSend(status) {
+            if (payloadData && payloadData.cd && payloadData.cd.active) {
+                const rem = payloadData.cd.rem_min || 60;
+                tg.showAlert(`⏳ Вы уже отмечали самочувствие недавно!\nСледующая оценка будет доступна через ~${rem} мин.`);
+                return;
+            }
+            send(status);
+        }
 
         function send(status) {
             tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
@@ -503,6 +516,19 @@
 
                 if (payloadData.d && payloadData.d.length > 0) {
                     renderChart(payloadData.d);
+                }
+
+                if (payloadData.cd && payloadData.cd.active) {
+                    const banner = document.getElementById('cooldown-banner');
+                    const timer = document.getElementById('cooldown-timer');
+                    banner.style.display = 'block';
+                    timer.innerText = `Следующая отметка будет доступна через ~${payloadData.cd.rem_min} мин.`;
+                    
+                    const btns = document.querySelectorAll('#health-btn-row .btn');
+                    btns.forEach(b => {
+                        b.style.opacity = '0.55';
+                        b.style.filter = 'grayscale(30%)';
+                    });
                 }
 
                 updateSyncBadge("Актуально");
