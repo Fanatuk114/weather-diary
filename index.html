@@ -408,7 +408,6 @@
             color: #fff;
         }
 
-        #weather-card, #storm-card { display: none; }
     </style>
 </head>
 <body>
@@ -428,16 +427,16 @@
 
     <!-- Weather Card -->
     <div class="card" id="weather-card">
-        <div class="weather-top"><div class="city" id="w-city"></div></div>
-        <div class="temp-row"><div class="weather-icon" id="w-icon"></div><div class="temp" id="w-temp"></div></div>
-        <div class="details"><span id="w-desc"></span><span id="w-press"></span></div>
+        <div class="weather-top"><div class="city" id="w-city">📍 Загрузка...</div></div>
+        <div class="temp-row"><div class="weather-icon" id="w-icon">⛅</div><div class="temp" id="w-temp">--°</div></div>
+        <div class="details"><span id="w-desc">Синхронизация данных...</span><span id="w-press"></span></div>
     </div>
 
     <!-- Storm Card -->
     <div class="card" id="storm-card">
         <h2>Магнитная обстановка</h2>
-        <div class="kp-value" id="kp-val"></div>
-        <div class="kp-text" id="kp-desc"></div>
+        <div class="kp-value kp-good" id="kp-val">Kp --</div>
+        <div class="kp-text" id="kp-desc">Подключение к NOAA SWPC...</div>
     </div>
 
     <!-- Health Log Card -->
@@ -583,4 +582,319 @@
             const colors = entries.map(d => {
                 if (d.s === 'good') return '#43e97b';
                 if (d.s === 'normal') return '#f6d365';
-             
+                return '#ff0844';
+            });
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: entries.map(d => d.t),
+                    datasets: [{
+                        label: 'Kp',
+                        data: entries.map(d => d.k),
+                        borderColor: 'rgba(255, 255, 255, 0.25)',
+                        pointBackgroundColor: colors,
+                        pointBorderColor: '#ffffff',
+                        pointRadius: 6,
+                        borderWidth: 2,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { min: 0, max: 9, grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
+                        x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 } }
+                    }
+                }
+            });
+        }
+
+        // Live API Fetch for real-time online refresh
+        async function fetchLiveUpdates() {
+            let updated = false;
+            // 1. NOAA SWPC Planetary K-index (CORS supported)
+            try {
+                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json?_t=" + Date.now());
+                const data = await res.json();
+                if (data && data.length > 1) {
+                    const lastRow = data[data.length - 1];
+                    const kpVal = parseFloat(lastRow[1]);
+                    if (!isNaN(kpVal)) {
+                        renderStorm(kpVal);
+                        updated = true;
+                    }
+                }
+            } catch (err) {
+                console.warn("NOAA fetch error:", err);
+            }
+
+            // 2. Open-Meteo Weather
+            const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
+            const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,weather_code&_t=${Date.now()}`;
+                const res = await fetch(url);
+                const wData = await res.json();
+                if (wData && wData.current) {
+                    const cur = wData.current;
+                    const mmhgPress = Math.round((cur.surface_pressure || 1013) * 0.750062);
+                    if (!payloadData) payloadData = {};
+                    if (!payloadData.w) payloadData.w = { city: 'Москва', lat: lat, lon: lon };
+                    payloadData.w.t = cur.temperature_2m;
+                    payloadData.w.p = mmhgPress;
+                    renderWeather(payloadData.w);
+                    updated = true;
+                }
+            } catch (err) {
+                console.warn("Weather fetch error:", err);
+            }
+            return updated;
+        }
+
+        async function manualRefresh() {
+            triggerHaptic('light');
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('spin');
+            updateSyncBadge("Обновление...");
+            
+            try {
+                await fetchLiveUpdates();
+                triggerHaptic('success');
+                updateSyncBadge("Обновлено онлайн ✨");
+            } catch (e) {
+                triggerHaptic('error');
+                updateSyncBadge("Сбой сети");
+            } finally {
+                setTimeout(() => {
+                    icon.classList.remove('spin');
+                }, 600);
+            }
+        }
+
+        // Story Card Generation
+        function generateStoryCanvas() {
+            const canvas = document.getElementById('storyCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, 1920);
+            bgGrad.addColorStop(0, '#0B0F19');
+            bgGrad.addColorStop(0.5, '#111827');
+            bgGrad.addColorStop(1, '#0B0F19');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 1080, 1920);
+            
+            // Ambient Top Glow
+            const glowGrad = ctx.createRadialGradient(540, 250, 40, 540, 250, 500);
+            glowGrad.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
+            glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glowGrad;
+            ctx.fillRect(0, 0, 1080, 750);
+            
+            function roundRect(x, y, w, h, r, fillColor, strokeColor, strokeWidth = 2) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.arcTo(x + w, y, x + w, y + h, r);
+                ctx.arcTo(x + w, y + h, x, y + h, r);
+                ctx.arcTo(x, y + h, x, y, r);
+                ctx.arcTo(x, y, x + w, y, r);
+                ctx.closePath();
+                if (fillColor) { ctx.fillStyle = fillColor; ctx.fill(); }
+                if (strokeColor) { ctx.strokeStyle = strokeColor; ctx.lineWidth = strokeWidth; ctx.stroke(); }
+            }
+            
+            // 1. Header
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 26px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('МЕТЕОСВОДКА & МАГНИТНЫЕ БУРИ', 540, 140);
+            
+            const city = (payloadData?.w?.city || 'Ваш город').toUpperCase();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 54px -apple-system, sans-serif';
+            ctx.fillText(city, 540, 220);
+            
+            const now = new Date();
+            const dateFormatted = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+            ctx.fillStyle = '#64748b';
+            ctx.font = '28px -apple-system, sans-serif';
+            ctx.fillText(dateFormatted, 540, 275);
+            
+            // 2. Weather Box
+            roundRect(80, 350, 920, 390, 32, 'rgba(22, 30, 46, 0.95)', '#334155', 2);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 26px -apple-system, sans-serif';
+            ctx.fillText('ТЕМПЕРАТУРА И ПОГОДА', 140, 420);
+            
+            const tVal = payloadData?.w?.t !== undefined ? Math.round(payloadData.w.t) : 18;
+            const tStr = tVal > 0 ? '+' + tVal + '°C' : tVal + '°C';
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 110px -apple-system, sans-serif';
+            ctx.fillText(tStr, 140, 560);
+            
+            const wIcon = payloadData?.w?.icon || '⛅';
+            const wDesc = (payloadData?.w?.desc || 'Облачно с прояснениями');
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '36px -apple-system, sans-serif';
+            ctx.fillText(wIcon + '  ' + wDesc, 140, 660);
+            
+            // 3. Storm Box
+            const kpVal = payloadData?.kp?.val !== undefined ? Number(payloadData.kp.val) : 2.0;
+            const kpColor = kpVal < 4 ? '#10b981' : (kpVal < 5 ? '#f59e0b' : '#ef4444');
+            roundRect(80, 780, 920, 390, 32, 'rgba(22, 30, 46, 0.95)', kpColor, 3);
+            
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 26px -apple-system, sans-serif';
+            ctx.fillText('ГЕОМАГНИТНАЯ АКТИВНОСТЬ', 140, 850);
+            
+            ctx.fillStyle = kpColor;
+            ctx.font = 'bold 110px -apple-system, sans-serif';
+            ctx.fillText('Kp ' + kpVal.toFixed(1), 140, 990);
+            
+            const kpDescText = payloadData?.kp?.text || kpDescription(kpVal);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 36px -apple-system, sans-serif';
+            ctx.fillText(kpDescText, 140, 1090);
+            
+            // 4. Pressure Box
+            const isSaw = payloadData?.w?.is_saw;
+            const pEdge = isSaw ? '#ef4444' : '#334155';
+            roundRect(80, 1210, 920, 340, 32, 'rgba(22, 30, 46, 0.95)', pEdge, 2);
+            
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 26px -apple-system, sans-serif';
+            ctx.fillText('АТМОСФЕРНОЕ ДАВЛЕНИЕ', 140, 1280);
+            
+            const pVal = (payloadData?.w?.p || 754) + ' мм рт. ст.';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.font = 'bold 64px -apple-system, sans-serif';
+            ctx.fillText(pVal, 140, 1380);
+            
+            const pStat = isSaw ? '⚠️ БАРИЧЕСКАЯ ПИЛА (резкий скачок давления)' : (payloadData?.w?.p_status || '✅ Стабильное (без резких скачков)');
+            ctx.fillStyle = isSaw ? '#f87171' : '#94a3b8';
+            ctx.font = '30px -apple-system, sans-serif';
+            ctx.fillText(pStat, 140, 1470);
+            
+            // 5. Watermark Footer
+            roundRect(140, 1610, 800, 200, 28, '#0f172a', '#1e293b', 2);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#60a5fa';
+            ctx.font = 'bold 38px -apple-system, sans-serif';
+            ctx.fillText('@magni_buriBot', 540, 1700);
+            ctx.fillStyle = '#64748b';
+            ctx.font = '26px -apple-system, sans-serif';
+            ctx.fillText('Бот погоды, геоштормов и дневник здоровья', 540, 1760);
+            
+            return canvas.toDataURL('image/png');
+        }
+
+        function openStoryModal() {
+            triggerHaptic('medium');
+            const dataUrl = generateStoryCanvas();
+            const img = document.getElementById('story-preview-img');
+            img.src = dataUrl;
+            
+            const modal = document.getElementById('story-modal');
+            modal.classList.add('active');
+            
+            if (tg && typeof tg.shareToStory === 'function') {
+                document.getElementById('btn-tg-story').style.display = 'block';
+            }
+        }
+
+        function closeStoryModal() {
+            triggerHaptic('light');
+            document.getElementById('story-modal').classList.remove('active');
+        }
+
+        function downloadStoryImage() {
+            triggerHaptic('success');
+            const canvas = document.getElementById('storyCanvas');
+            const link = document.createElement('a');
+            link.download = 'weather_story_card.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function shareNativeStory() {
+            triggerHaptic('medium');
+            const canvas = document.getElementById('storyCanvas');
+            const dataUrl = canvas.toDataURL('image/png');
+            if (tg && typeof tg.shareToStory === 'function') {
+                tg.shareToStory(dataUrl, {
+                    text: 'Мой прогноз погоды и геоштормов в @magni_buriBot ⚡'
+                });
+            }
+        }
+
+        // Initial Data Load
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const rawData = urlParams.get('d');
+            
+            if (rawData) {
+                payloadData = JSON.parse(rawData);
+                
+                if (payloadData.w) {
+                    renderWeather(payloadData.w);
+                } else {
+                    manualRefresh();
+                }
+
+                if (payloadData.kp) {
+                    renderStorm(payloadData.kp);
+                } else {
+                    manualRefresh();
+                }
+
+                if (payloadData.a) {
+                    const elA = document.getElementById('analytics-text');
+                    elA.innerText = payloadData.a;
+                    elA.style.display = 'block';
+                }
+                
+                if (payloadData.tip) {
+                    const elTip = document.getElementById('tip-text');
+                    elTip.innerText = "💡 " + payloadData.tip;
+                    elTip.style.display = 'block';
+                }
+
+                if (payloadData.d && payloadData.d.length > 0) {
+                    renderChart(payloadData.d);
+                }
+
+                if (payloadData.cd && payloadData.cd.active) {
+                    const banner = document.getElementById('cooldown-banner');
+                    const timer = document.getElementById('cooldown-timer');
+                    banner.style.display = 'block';
+                    timer.innerText = `Следующая отметка будет доступна через ~${payloadData.cd.rem_min} мин.`;
+                    
+                    const btns = document.querySelectorAll('#health-btn-row .btn');
+                    btns.forEach(b => {
+                        b.style.opacity = '0.55';
+                        b.style.filter = 'grayscale(30%)';
+                    });
+                }
+
+                updateSyncBadge("Актуально");
+            } else {
+                // If opened without payload, try live fetch
+                manualRefresh();
+            }
+        } catch (e) {
+            console.error("Initialization error:", e);
+            manualRefresh();
+        }
+
+        // Auto background refresh every 5 minutes if tab is kept open
+        setInterval(fetchLiveUpdates, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
