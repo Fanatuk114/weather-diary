@@ -7,50 +7,292 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: var(--tg-theme-bg-color, #121212); --text: var(--tg-theme-text-color, #ffffff); --hint: var(--tg-theme-hint-color, #aaaaaa); --card: rgba(255, 255, 255, 0.07); }
-        body { background-color: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
-        .card { background: var(--card); border-radius: 20px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1); box-sizing: border-box; }
-        h2 { margin: 0 0 10px 0; font-size: 18px; text-align: center; }
-        .tip-text { font-size: 14px; text-align: center; font-style: italic; color: var(--hint); margin-bottom: 10px; }
-        .analytics-text { font-size: 15px; text-align: center; font-weight: bold; color: #43e97b; margin-bottom: 10px; }
-        
-        .weather-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .city { font-size: 16px; font-weight: bold; color: var(--hint); }
-        .temp-row { display: flex; align-items: center; gap: 15px; }
-        .temp { font-size: 42px; font-weight: 800; }
-        .weather-icon { font-size: 36px; }
-        .details { display: flex; justify-content: space-between; font-size: 14px; color: var(--hint); margin-top: 10px;}
-        
-        .kp-value { font-size: 36px; font-weight: 800; text-align: center; }
-        .kp-text { text-align: center; font-size: 14px; color: var(--hint); }
-        .kp-good { color: #43e97b; } .kp-warn { color: #f6d365; } .kp-danger { color: #ff0844; }
+        :root {
+            --bg: var(--tg-theme-bg-color, #121214);
+            --text: var(--tg-theme-text-color, #ffffff);
+            --hint: var(--tg-theme-hint-color, #9e9ea7);
+            --card: rgba(255, 255, 255, 0.06);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-glow: rgba(0, 0, 0, 0.3);
+            --primary: #667eea;
+            --success: #43e97b;
+            --warning: #f6d365;
+            --danger: #ff0844;
+        }
 
-        .btn-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; }
-        .btn { flex: 1; padding: 15px 0; border-radius: 16px; border: none; cursor: pointer; }
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            user-select: none;
+        }
+
+        /* Top status bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--hint);
+        }
+
+        .dot-live {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text);
+            border-radius: 10px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-refresh:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .spin {
+            animation: rotate 0.8s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Card styles */
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 18px;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 8px 24px var(--card-glow);
+            transition: transform 0.2s ease;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 17px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: -0.2px;
+        }
+
+        .tip-text {
+            font-size: 13.5px;
+            text-align: center;
+            line-height: 1.4;
+            color: var(--hint);
+            margin-bottom: 12px;
+            padding: 0 8px;
+        }
+
+        .analytics-badge {
+            background: rgba(67, 233, 123, 0.12);
+            border: 1px solid rgba(67, 233, 123, 0.3);
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-size: 14px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 12px;
+        }
+
+        /* Weather Card */
+        .weather-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .city {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--hint);
+        }
+
+        .temp-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .temp {
+            font-size: 44px;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .weather-icon {
+            font-size: 40px;
+        }
+
+        .details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13.5px;
+            color: var(--hint);
+            margin-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 8px;
+        }
+
+        /* Storm Card */
+        .kp-value {
+            font-size: 42px;
+            font-weight: 850;
+            text-align: center;
+            letter-spacing: -1px;
+            margin: 4px 0;
+        }
+
+        .kp-text {
+            text-align: center;
+            font-size: 14.5px;
+            font-weight: 500;
+            color: var(--hint);
+        }
+
+        .kp-good { color: var(--success); text-shadow: 0 0 16px rgba(67, 233, 123, 0.3); }
+        .kp-warn { color: var(--warning); text-shadow: 0 0 16px rgba(246, 211, 101, 0.3); }
+        .kp-danger { color: var(--danger); text-shadow: 0 0 16px rgba(255, 8, 68, 0.4); }
+
+        /* Wellbeing Buttons */
+        .btn-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 6px;
+            border-radius: 16px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+            filter: brightness(0.9);
+        }
+
         .btn-good { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
         .btn-normal { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
         .btn-bad { background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%); }
-        .btn-icon { font-size: 24px; display: block; margin-bottom: 5px;}
-        .btn-text { font-size: 14px; font-weight: 700; color: #222; }
-        
-        .btn-share { margin-top: 15px; width: 100%; padding: 15px 0; border-radius: 16px; border: none; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 16px; font-weight: bold; }
-        
+
+        .btn-icon {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .btn-text {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #1a1a1a;
+        }
+
+        /* Share Button */
+        .btn-share {
+            margin-top: 6px;
+            margin-bottom: 12px;
+            width: 100%;
+            padding: 16px 0;
+            border-radius: 16px;
+            border: none;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 15.5px;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
+            transition: all 0.2s ease;
+        }
+
+        .btn-share:active {
+            transform: scale(0.98);
+            filter: brightness(0.95);
+        }
+
         #weather-card, #storm-card { display: none; }
     </style>
 </head>
 <body>
+
+    <!-- Header Status Bar with Live Update & Refresh -->
+    <div class="status-bar">
+        <div class="status-indicator">
+            <span class="dot-live"></span>
+            <span id="sync-status">Актуально</span>
+            <span id="sync-time" style="opacity: 0.7;"></span>
+        </div>
+        <button class="btn-refresh" id="btn-refresh" onclick="manualRefresh()">
+            <span id="refresh-icon">🔄</span>
+            <span>Обновить</span>
+        </button>
+    </div>
+
+    <!-- Weather Card -->
     <div class="card" id="weather-card">
         <div class="weather-top"><div class="city" id="w-city"></div></div>
         <div class="temp-row"><div class="weather-icon" id="w-icon"></div><div class="temp" id="w-temp"></div></div>
         <div class="details"><span id="w-desc"></span><span id="w-press"></span></div>
     </div>
 
+    <!-- Storm Card -->
     <div class="card" id="storm-card">
         <h2>Магнитная обстановка</h2>
         <div class="kp-value" id="kp-val"></div>
         <div class="kp-text" id="kp-desc"></div>
     </div>
 
+    <!-- Health Log Card -->
     <div class="card">
         <h2>Как вы сейчас?</h2>
         <div class="btn-row">
@@ -60,18 +302,23 @@
         </div>
     </div>
 
-    <div class="card" style="padding: 15px 10px;">
-        <div class="analytics-text" id="analytics-text"></div>
-        <div class="tip-text" id="tip-text"></div>
+    <!-- Analytics & Chart Card -->
+    <div class="card" style="padding: 16px 12px;">
+        <div class="analytics-badge" id="analytics-text" style="display: none;"></div>
+        <div class="tip-text" id="tip-text" style="display: none;"></div>
         <canvas id="diaryChart"></canvas>
     </div>
     
-    <button class="btn-share" onclick="shareApp()">Поделиться с друзьями 🚀</button>
+    <!-- Share Button -->
+    <button class="btn-share" onclick="shareApp()">Поделиться трекером 🚀</button>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
+
+        let payloadData = null;
+        let chartInstance = null;
 
         function send(status) {
             tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
@@ -79,84 +326,197 @@
         }
         
         function shareApp() {
-            const botUsername = tg.initDataUnsafe?.user?.username || "вашим_ботом";
-            const text = encodeURIComponent(`📊 Я слежу за своим здоровьем и магнитными бурями через удобный трекер! Присоединяйся, тут крутые графики и предупреждения о скачках давления!`);
+            const text = encodeURIComponent(`📊 Я слежу за своим здоровьем и магнитными бурями через удобный трекер! Присоединяйся к каналу и боту:` );
             const shareUrl = `https://t.me/share/url?url=https://t.me/weather_storm_space&text=${text}`;
             tg.openTelegramLink(shareUrl);
         }
 
+        function formatTime(d = new Date()) {
+            const pad = n => n < 10 ? '0' + n : n;
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function updateSyncBadge(text, isFresh = true) {
+            document.getElementById('sync-status').innerText = text;
+            document.getElementById('sync-time').innerText = formatTime();
+        }
+
+        function renderWeather(w) {
+            if (!w) return;
+            document.getElementById('weather-card').style.display = 'block';
+            document.getElementById('w-city').innerText = '📍 ' + (w.city || 'Ваш город');
+            document.getElementById('w-icon').innerText = w.icon || '⛅';
+            const t = Math.round(w.t);
+            document.getElementById('w-temp').innerText = t > 0 ? '+' + t + '°' : t + '°';
+            document.getElementById('w-desc').innerText = w.desc || '';
+            document.getElementById('w-press').innerText = (w.p ? w.p + ' мм рт.ст.' : '');
+        }
+
+        function kpDescription(kp) {
+            if (kp < 4) return '🟢 Спокойное поле (бури нет)';
+            if (kp < 5) return '🟡 Небольшие возмущения (G0)';
+            if (kp < 6) return '🟠 Слабая буря (G1)';
+            if (kp < 7) return '🟠 Умеренная буря (G2)';
+            if (kp < 8) return '🔴 Сильная буря (G3)';
+            return '🔴 Очень сильный геошторм (G4+)';
+        }
+
+        function renderStorm(kp) {
+            if (!kp && kp !== 0) return;
+            document.getElementById('storm-card').style.display = 'block';
+            const val = typeof kp === 'object' ? kp.val : kp;
+            const text = typeof kp === 'object' ? (kp.text || kpDescription(val)) : kpDescription(val);
+            
+            const elVal = document.getElementById('kp-val');
+            elVal.innerText = 'Kp ' + Number(val).toFixed(1);
+            document.getElementById('kp-desc').innerText = text;
+            if (val >= 5) elVal.className = 'kp-value kp-danger';
+            else if (val >= 4) elVal.className = 'kp-value kp-warn';
+            else elVal.className = 'kp-value kp-good';
+        }
+
+        function renderChart(entries) {
+            if (!entries || entries.length === 0) return;
+            const ctx = document.getElementById('diaryChart').getContext('2d');
+            const colors = entries.map(d => {
+                if (d.s === 'good') return '#43e97b';
+                if (d.s === 'normal') return '#f6d365';
+                return '#ff0844';
+            });
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: entries.map(d => d.t),
+                    datasets: [{
+                        label: 'Kp',
+                        data: entries.map(d => d.k),
+                        borderColor: 'rgba(255, 255, 255, 0.25)',
+                        pointBackgroundColor: colors,
+                        pointBorderColor: '#ffffff',
+                        pointRadius: 6,
+                        borderWidth: 2,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { min: 0, max: 9, grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
+                        x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 } }
+                    }
+                }
+            });
+        }
+
+        // Live API Fetch for real-time online refresh
+        async function fetchLiveUpdates() {
+            let updated = false;
+            // 1. NOAA SWPC Planetary K-index (CORS supported)
+            try {
+                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json?_t=" + Date.now());
+                const data = await res.json();
+                if (data && data.length > 1) {
+                    const lastRow = data[data.length - 1];
+                    const kpVal = parseFloat(lastRow[1]);
+                    if (!isNaN(kpVal)) {
+                        renderStorm(kpVal);
+                        updated = true;
+                    }
+                }
+            } catch (err) {
+                console.warn("NOAA fetch error:", err);
+            }
+
+            // 2. Open-Meteo Weather (if lat/lon are present)
+            if (payloadData && payloadData.w && payloadData.w.lat && payloadData.w.lon) {
+                try {
+                    const lat = payloadData.w.lat;
+                    const lon = payloadData.w.lon;
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,weather_code&_t=${Date.now()}`;
+                    const res = await fetch(url);
+                    const wData = await res.json();
+                    if (wData && wData.current) {
+                        const cur = wData.current;
+                        const mmhgPress = Math.round((cur.surface_pressure || 1013) * 0.750062);
+                        payloadData.w.t = cur.temperature_2m;
+                        payloadData.w.p = mmhgPress;
+                        renderWeather(payloadData.w);
+                        updated = true;
+                    }
+                } catch (err) {
+                    console.warn("Weather fetch error:", err);
+                }
+            }
+            return updated;
+        }
+
+        async function manualRefresh() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('spin');
+            updateSyncBadge("Обновление...");
+            
+            try {
+                await fetchLiveUpdates();
+                updateSyncBadge("Обновлено онлайн ✨");
+            } catch (e) {
+                updateSyncBadge("Сбой сети");
+            } finally {
+                setTimeout(() => {
+                    icon.classList.remove('spin');
+                }, 600);
+            }
+        }
+
+        // Initial Data Load
         try {
-            // Читаем чистые параметры, которые прислал бот
             const urlParams = new URLSearchParams(window.location.search);
             const rawData = urlParams.get('d');
             
             if (rawData) {
-                const payload = JSON.parse(rawData);
+                payloadData = JSON.parse(rawData);
                 
-                if (payload.w) {
-                    document.getElementById('weather-card').style.display = 'block';
-                    document.getElementById('w-city').innerText = '📍 ' + payload.w.city;
-                    document.getElementById('w-icon').innerText = payload.w.icon;
-                    document.getElementById('w-temp').innerText = payload.w.t > 0 ? '+' + payload.w.t + '°' : payload.w.t + '°';
-                    document.getElementById('w-desc').innerText = payload.w.desc;
-                    document.getElementById('w-press').innerText = payload.w.p + ' мм рт.ст.';
+                if (payloadData.w) {
+                    renderWeather(payloadData.w);
                 }
 
-                if (payload.kp) {
-                    document.getElementById('storm-card').style.display = 'block';
-                    const kpVal = payload.kp.val;
-                    const elVal = document.getElementById('kp-val');
-                    elVal.innerText = 'Kp ' + kpVal.toFixed(1);
-                    document.getElementById('kp-desc').innerText = payload.kp.text;
-                    if (kpVal >= 5) elVal.className = 'kp-value kp-danger';
-                    else if (kpVal >= 4) elVal.className = 'kp-value kp-warn';
-                    else elVal.className = 'kp-value kp-good';
+                if (payloadData.kp) {
+                    renderStorm(payloadData.kp);
                 }
 
-                if (payload.a) {
-                    document.getElementById('analytics-text').innerText = payload.a;
+                if (payloadData.a) {
+                    const elA = document.getElementById('analytics-text');
+                    elA.innerText = payloadData.a;
+                    elA.style.display = 'block';
                 }
-                if (payload.tip) {
-                    document.getElementById('tip-text').innerText = "💡 " + payload.tip;
+                
+                if (payloadData.tip) {
+                    const elTip = document.getElementById('tip-text');
+                    elTip.innerText = "💡 " + payloadData.tip;
+                    elTip.style.display = 'block';
                 }
 
-                if (payload.d && payload.d.length > 0) {
-                    const data = payload.d;
-                    const ctx = document.getElementById('diaryChart').getContext('2d');
-                    const colors = data.map(d => {
-                        if(d.s === 'good') return '#43e97b';
-                        if(d.s === 'normal') return '#f6d365';
-                        return '#ff0844';
-                    });
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: data.map(d => d.t),
-                            datasets: [{
-                                label: 'Kp',
-                                data: data.map(d => d.k),
-                                borderColor: 'rgba(255, 255, 255, 0.2)',
-                                pointBackgroundColor: colors,
-                                pointBorderColor: '#fff',
-                                pointRadius: 6,
-                                borderWidth: 2,
-                                tension: 0.3
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: { legend: { display: false } },
-                            scales: {
-                                y: { min: 0, max: 9, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
-                                x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)' } }
-                            }
-                        }
-                    });
+                if (payloadData.d && payloadData.d.length > 0) {
+                    renderChart(payloadData.d);
                 }
+
+                updateSyncBadge("Актуально");
+            } else {
+                // If opened without payload, try live fetch
+                manualRefresh();
             }
         } catch (e) {
-            console.error("Parse error:", e);
+            console.error("Initialization error:", e);
+            manualRefresh();
         }
+
+        // Auto background refresh every 5 minutes if tab is kept open
+        setInterval(fetchLiveUpdates, 5 * 60 * 1000);
     </script>
 </body>
 </html>
