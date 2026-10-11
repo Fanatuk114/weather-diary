@@ -238,12 +238,32 @@
             color: #1a1a1a;
         }
 
-        /* Share Button */
-        .btn-share {
-            margin-top: 6px;
-            margin-bottom: 12px;
+        /* Share and Story Buttons */
+        .btn-story {
             width: 100%;
-            padding: 16px 0;
+            padding: 14px 0;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-story:active {
+            transform: scale(0.98);
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .btn-share {
+            width: 100%;
+            padding: 15px 0;
             border-radius: 16px;
             border: none;
             cursor: pointer;
@@ -258,6 +278,134 @@
         .btn-share:active {
             transform: scale(0.98);
             filter: brightness(0.95);
+        }
+
+        /* Pressure badge */
+        .press-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 8px;
+            margin-left: 6px;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+        .press-badge.saw {
+            background: rgba(255, 8, 68, 0.2);
+            color: #ff4d6d;
+            border: 1px solid rgba(255, 8, 68, 0.4);
+        }
+        .press-badge.stable {
+            background: rgba(67, 233, 123, 0.15);
+            color: #43e97b;
+            border: 1px solid rgba(67, 233, 123, 0.3);
+        }
+
+        /* Modal for Stories Preview */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: #161b22;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 340px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            transform: scale(0.92);
+            transition: transform 0.25s ease;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .modal-title {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .btn-modal-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .story-img-preview {
+            width: 100%;
+            max-height: 50vh;
+            object-fit: contain;
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-btn-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .btn-modal-action {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-modal-download {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+        }
+
+        .btn-modal-tg-story {
+            background: #24A1DE;
+            color: #fff;
         }
 
         #weather-card, #storm-card { display: none; }
@@ -313,8 +461,27 @@
         <canvas id="diaryChart"></canvas>
     </div>
     
-    <!-- Share Button -->
-    <button class="btn-share" onclick="shareApp()">Поделиться трекером 🚀</button>
+    <!-- Action Buttons -->
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; margin-bottom: 12px;">
+        <button class="btn-story" onclick="openStoryModal()">📸 Создать Stories-карточку</button>
+        <button class="btn-share" onclick="shareApp()">Поделиться трекером 🚀</button>
+    </div>
+
+    <!-- Story Preview Modal -->
+    <div id="story-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">📸 Карточка для Stories</div>
+                <button class="btn-modal-close" onclick="closeStoryModal()">✕</button>
+            </div>
+            <img id="story-preview-img" class="story-img-preview" alt="Preview">
+            <div class="modal-btn-row">
+                <button class="btn-modal-action btn-modal-download" onclick="downloadStoryImage()">📥 Сохранить в галерею</button>
+                <button class="btn-modal-action btn-modal-tg-story" id="btn-tg-story" onclick="shareNativeStory()" style="display: none;">📲 Опубликовать в Stories</button>
+            </div>
+        </div>
+    </div>
+    <canvas id="storyCanvas" width="1080" height="1920" style="display: none;"></canvas>
 
     <script>
         const tg = window.Telegram.WebApp;
@@ -324,12 +491,26 @@
         let payloadData = null;
         let chartInstance = null;
 
+        function triggerHaptic(type = 'light') {
+            try {
+                if (tg && tg.HapticFeedback) {
+                    if (type === 'error' || type === 'success' || type === 'warning') {
+                        tg.HapticFeedback.notificationOccurred(type);
+                    } else {
+                        tg.HapticFeedback.impactOccurred(type);
+                    }
+                }
+            } catch (e) {}
+        }
+
         function handleSend(status) {
             if (payloadData && payloadData.cd && payloadData.cd.active) {
+                triggerHaptic('error');
                 const rem = payloadData.cd.rem_min || 60;
                 tg.showAlert(`⏳ Вы уже отмечали самочувствие недавно!\nСледующая оценка будет доступна через ~${rem} мин.`);
                 return;
             }
+            triggerHaptic('medium');
             send(status);
         }
 
@@ -339,6 +520,7 @@
         }
         
         function shareApp() {
+            triggerHaptic('light');
             const text = encodeURIComponent(`📊 Я слежу за своим здоровьем и магнитными бурями через удобный трекер! Бот: @magni_buriBot | Канал: @weather_storm_space`);
             const shareUrl = `https://t.me/share/url?url=https://t.me/weather_storm_space&text=${text}`;
             tg.openTelegramLink(shareUrl);
@@ -362,7 +544,14 @@
             const t = Math.round(w.t);
             document.getElementById('w-temp').innerText = t > 0 ? '+' + t + '°' : t + '°';
             document.getElementById('w-desc').innerText = w.desc || '';
-            document.getElementById('w-press').innerText = (w.p ? w.p + ' мм рт.ст.' : '');
+            
+            let pressHtml = (w.p ? w.p + ' мм рт.ст.' : '');
+            if (w.is_saw) {
+                pressHtml += ' <span class="press-badge saw">⚠️ Барическая пила</span>';
+            } else if (w.p) {
+                pressHtml += ' <span class="press-badge stable">✅ Стабильно</span>';
+            }
+            document.getElementById('w-press').innerHTML = pressHtml;
         }
 
         function kpDescription(kp) {
@@ -394,155 +583,4 @@
             const colors = entries.map(d => {
                 if (d.s === 'good') return '#43e97b';
                 if (d.s === 'normal') return '#f6d365';
-                return '#ff0844';
-            });
-
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: entries.map(d => d.t),
-                    datasets: [{
-                        label: 'Kp',
-                        data: entries.map(d => d.k),
-                        borderColor: 'rgba(255, 255, 255, 0.25)',
-                        pointBackgroundColor: colors,
-                        pointBorderColor: '#ffffff',
-                        pointRadius: 6,
-                        borderWidth: 2,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { min: 0, max: 9, grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
-                        x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 } }
-                    }
-                }
-            });
-        }
-
-        // Live API Fetch for real-time online refresh
-        async function fetchLiveUpdates() {
-            let updated = false;
-            // 1. NOAA SWPC Planetary K-index (CORS supported)
-            try {
-                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json?_t=" + Date.now());
-                const data = await res.json();
-                if (data && data.length > 1) {
-                    const lastRow = data[data.length - 1];
-                    const kpVal = parseFloat(lastRow[1]);
-                    if (!isNaN(kpVal)) {
-                        renderStorm(kpVal);
-                        updated = true;
-                    }
-                }
-            } catch (err) {
-                console.warn("NOAA fetch error:", err);
-            }
-
-            // 2. Open-Meteo Weather (if lat/lon are present)
-            if (payloadData && payloadData.w && payloadData.w.lat && payloadData.w.lon) {
-                try {
-                    const lat = payloadData.w.lat;
-                    const lon = payloadData.w.lon;
-                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,weather_code&_t=${Date.now()}`;
-                    const res = await fetch(url);
-                    const wData = await res.json();
-                    if (wData && wData.current) {
-                        const cur = wData.current;
-                        const mmhgPress = Math.round((cur.surface_pressure || 1013) * 0.750062);
-                        payloadData.w.t = cur.temperature_2m;
-                        payloadData.w.p = mmhgPress;
-                        renderWeather(payloadData.w);
-                        updated = true;
-                    }
-                } catch (err) {
-                    console.warn("Weather fetch error:", err);
-                }
-            }
-            return updated;
-        }
-
-        async function manualRefresh() {
-            const icon = document.getElementById('refresh-icon');
-            icon.classList.add('spin');
-            updateSyncBadge("Обновление...");
-            
-            try {
-                await fetchLiveUpdates();
-                updateSyncBadge("Обновлено онлайн ✨");
-            } catch (e) {
-                updateSyncBadge("Сбой сети");
-            } finally {
-                setTimeout(() => {
-                    icon.classList.remove('spin');
-                }, 600);
-            }
-        }
-
-        // Initial Data Load
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const rawData = urlParams.get('d');
-            
-            if (rawData) {
-                payloadData = JSON.parse(rawData);
-                
-                if (payloadData.w) {
-                    renderWeather(payloadData.w);
-                }
-
-                if (payloadData.kp) {
-                    renderStorm(payloadData.kp);
-                }
-
-                if (payloadData.a) {
-                    const elA = document.getElementById('analytics-text');
-                    elA.innerText = payloadData.a;
-                    elA.style.display = 'block';
-                }
-                
-                if (payloadData.tip) {
-                    const elTip = document.getElementById('tip-text');
-                    elTip.innerText = "💡 " + payloadData.tip;
-                    elTip.style.display = 'block';
-                }
-
-                if (payloadData.d && payloadData.d.length > 0) {
-                    renderChart(payloadData.d);
-                }
-
-                if (payloadData.cd && payloadData.cd.active) {
-                    const banner = document.getElementById('cooldown-banner');
-                    const timer = document.getElementById('cooldown-timer');
-                    banner.style.display = 'block';
-                    timer.innerText = `Следующая отметка будет доступна через ~${payloadData.cd.rem_min} мин.`;
-                    
-                    const btns = document.querySelectorAll('#health-btn-row .btn');
-                    btns.forEach(b => {
-                        b.style.opacity = '0.55';
-                        b.style.filter = 'grayscale(30%)';
-                    });
-                }
-
-                updateSyncBadge("Актуально");
-            } else {
-                // If opened without payload, try live fetch
-                manualRefresh();
-            }
-        } catch (e) {
-            console.error("Initialization error:", e);
-            manualRefresh();
-        }
-
-        // Auto background refresh every 5 minutes if tab is kept open
-        setInterval(fetchLiveUpdates, 5 * 60 * 1000);
-    </script>
-</body>
-</html>
+             
