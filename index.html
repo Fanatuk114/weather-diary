@@ -180,6 +180,89 @@
             padding-top: 8px;
         }
 
+        /* Прогноз по частям суток */
+        .parts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .part {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 8px 2px;
+            min-width: 0;
+        }
+        .part-l { font-size: 12px; font-weight: 600; color: var(--hint); }
+        .part-z { font-size: 10px; color: var(--hint); opacity: 0.8; min-height: 12px; }
+        .part-i { font-size: 22px; margin: 2px 0; }
+        .part-t { font-size: 13px; font-weight: 700; white-space: nowrap; }
+        .part-r { font-size: 11px; color: #7fb3ff; min-height: 14px; margin-top: 2px; }
+
+        /* Календарь бурь */
+        .cal-head, .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .cal-head div {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--hint);
+            padding-bottom: 2px;
+        }
+        .cal-cell {
+            border-radius: 10px;
+            padding: 5px 0 4px;
+            text-align: center;
+            min-height: 40px;
+            background: rgba(255, 255, 255, 0.03);
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .cal-cell.empty { background: transparent; cursor: default; opacity: 0.35; }
+        .cal-cell.today { border-color: var(--primary); }
+        .cal-cell.sel { border-color: var(--text); }
+        .cal-m { font-size: 9px; line-height: 10px; min-height: 10px; color: var(--hint); text-transform: uppercase; }
+        .cal-d { font-size: 14px; font-weight: 700; line-height: 17px; }
+        .cal-k { font-size: 10px; line-height: 12px; color: var(--hint); }
+        .lv0 { background: rgba(67, 233, 123, 0.14); }
+        .lv1 { background: rgba(246, 211, 101, 0.28); }
+        .lv2 { background: rgba(255, 140, 60, 0.38); }
+        .lv3 { background: rgba(255, 8, 68, 0.42); }
+        .cal-detail {
+            margin-top: 10px;
+            min-height: 20px;
+            font-size: 14px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .cal-sum { margin-top: 8px; font-size: 13.5px; line-height: 1.45; text-align: center; }
+        .cal-legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 11.5px;
+            color: var(--hint);
+        }
+        .cal-legend span::before {
+            content: "";
+            display: inline-block;
+            width: 9px; height: 9px;
+            border-radius: 3px;
+            margin-right: 4px;
+            vertical-align: -1px;
+            background: var(--sw);
+        }
+        .cal-note { margin-top: 8px; font-size: 11.5px; color: var(--hint); text-align: center; line-height: 1.35; }
+
         /* Storm Card */
         .kp-value {
             font-size: 42px;
@@ -439,6 +522,7 @@
         <div class="weather-top"><div class="city" id="w-city">📍 Загрузка...</div></div>
         <div class="temp-row"><div class="weather-icon" id="w-icon">⛅</div><div class="temp" id="w-temp">--°</div></div>
         <div class="details"><span id="w-desc">Синхронизация данных...</span><span id="w-press"></span></div>
+        <div class="parts" id="w-parts" style="display:none"></div>
     </div>
 
     <!-- Storm Card -->
@@ -446,6 +530,22 @@
         <h2>Магнитная обстановка</h2>
         <div class="kp-value kp-good" id="kp-val">Kp --</div>
         <div class="kp-text" id="kp-desc">Подключение к NOAA SWPC...</div>
+    </div>
+
+    <!-- Outlook Calendar Card -->
+    <div class="card" id="outlook-card" style="display:none">
+        <h2>Бури на месяц</h2>
+        <div class="cal-head"><div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div></div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-detail" id="cal-detail">Нажмите на день, чтобы увидеть прогноз</div>
+        <div class="cal-sum" id="cal-sum"></div>
+        <div class="cal-legend">
+            <span style="--sw: rgba(67,233,123,0.6)">спокойно</span>
+            <span style="--sw: rgba(246,211,101,0.8)">возмущения</span>
+            <span style="--sw: rgba(255,140,60,0.9)">буря</span>
+            <span style="--sw: rgba(255,8,68,0.9)">сильная буря</span>
+        </div>
+        <div class="cal-note" id="cal-note"></div>
     </div>
 
     <!-- Health Log Card -->
@@ -619,6 +719,172 @@
             document.getElementById('sync-time').innerText = formatTime();
         }
 
+        function fmtTemp(v) {
+            const r = Math.round(v);
+            return r > 0 ? '+' + r + '°' : r + '°';
+        }
+
+        function renderParts(parts) {
+            const box = document.getElementById('w-parts');
+            if (!box) return;
+            if (!parts || !parts.length) { box.style.display = 'none'; return; }
+            box.innerHTML = '';
+            parts.forEach(p => {
+                let t = '—';
+                if (p.a !== null && p.a !== undefined) {
+                    t = (p.a === p.b) ? fmtTemp(p.a) : fmtTemp(p.a) + '…' + fmtTemp(p.b);
+                }
+                let r = '';
+                if (p.r >= 0.1) r = '💧 ' + (p.p !== null && p.p !== undefined ? p.p + '%' : p.r.toFixed(1) + ' мм');
+                else if (p.p !== null && p.p !== undefined && p.p >= 30) r = '💧 ' + p.p + '%';
+                const el = document.createElement('div');
+                el.className = 'part';
+                [['part-l', p.l], ['part-z', p.z ? 'завтра' : ''], ['part-i', p.i || ''], ['part-t', t], ['part-r', r]]
+                    .forEach(([cls, txt]) => {
+                        const d = document.createElement('div');
+                        d.className = cls;
+                        d.textContent = txt;
+                        el.appendChild(d);
+                    });
+                box.appendChild(el);
+            });
+            box.style.display = 'grid';
+        }
+
+        // Части суток из почасового прогноза Open-Meteo (время уже местное: timezone=auto)
+        function partsFromOpenMeteo(wData) {
+            const h = wData && wData.hourly;
+            const nowStr = wData && wData.current && wData.current.time;
+            if (!h || !h.time || !nowStr) return null;
+            const toMs = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +s.slice(11, 13));
+            const nowFloor = toMs(nowStr);
+            const nowDate = nowStr.slice(0, 10);
+            const startH = Math.floor(+nowStr.slice(11, 13) / 6) * 6;
+            const base = Date.UTC(+nowStr.slice(0, 4), +nowStr.slice(5, 7) - 1, +nowStr.slice(8, 10), startH);
+            const names = { 0: 'Ночь', 6: 'Утро', 12: 'День', 18: 'Вечер' };
+            const HOUR = 3600 * 1000;
+            const out = [];
+            for (let k = 0; k < 4; k++) {
+                const pStart = base + 6 * HOUR * k, pEnd = pStart + 6 * HOUR, mid = pStart + 3 * HOUR;
+                let temps = [], precip = 0, pops = [], best = -1, bestGap = Infinity;
+                h.time.forEach((ts, i) => {
+                    const t = toMs(ts);
+                    if (t < Math.max(pStart, nowFloor) || t >= pEnd) return;
+                    if (h.temperature_2m && h.temperature_2m[i] != null) temps.push(h.temperature_2m[i]);
+                    if (h.precipitation && h.precipitation[i] != null) precip += h.precipitation[i];
+                    if (h.precipitation_probability && h.precipitation_probability[i] != null) pops.push(h.precipitation_probability[i]);
+                    if (Math.abs(t - mid) < bestGap) { bestGap = Math.abs(t - mid); best = i; }
+                });
+                if (!temps.length) continue;
+                const d = new Date(pStart);
+                const dateStr = d.toISOString().slice(0, 10);
+                const hour = d.getUTCHours();
+                const code = (best >= 0 && h.weather_code) ? h.weather_code[best] : undefined;
+                out.push({
+                    l: names[hour], z: (dateStr > nowDate && hour !== 0) ? 1 : 0,
+                    i: code !== undefined ? wmoWeather(code).icon : '',
+                    a: Math.round(Math.min(...temps)), b: Math.round(Math.max(...temps)),
+                    r: Math.round(precip * 10) / 10, p: pops.length ? Math.max(...pops) : null
+                });
+            }
+            return out;
+        }
+
+        const MONTHS_RU = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+        const WD_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+
+        function isoLocal(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function dayFromIso(s) { return new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); }
+        function kpLevel(k) { return k >= 7 ? 3 : k >= 5 ? 2 : k >= 4 ? 1 : 0; }
+        function kpWord(k) {
+            return ({4: 'возмущения', 5: 'слабая буря G1', 6: 'умеренная буря G2', 7: 'сильная буря G3',
+                     8: 'жёсткая буря G4', 9: 'экстремальная буря G5'})[Math.min(k, 9)] || 'спокойно';
+        }
+        function dayTitle(d) { return WD_RU[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_RU[d.getMonth()]; }
+
+        // Разбор таблицы NOAA 27-day outlook → {s, k, i}
+        function parseOutlookText(text) {
+            const mon = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+            const rows = [];
+            let issued = null;
+            text.split('\n').forEach(line => {
+                let m = line.match(/^:Issued:\s+(\d{4})\s+(\w{3})\s+(\d{1,2})/);
+                if (m && mon[m[2].toLowerCase()] !== undefined) {
+                    issued = isoLocal(new Date(+m[1], mon[m[2].toLowerCase()], +m[3]));
+                    return;
+                }
+                m = line.match(/^\s*(\d{4})\s+(\w{3})\s+(\d{1,2})\s+(\d+)\s+(\d+)\s+(\d+)\s*$/);
+                if (m && mon[m[2].toLowerCase()] !== undefined) {
+                    rows.push({ d: isoLocal(new Date(+m[1], mon[m[2].toLowerCase()], +m[3])), k: +m[6] });
+                }
+            });
+            if (!rows.length) return null;
+            return { s: rows[0].d, k: rows.map(r => r.k), i: issued };
+        }
+
+        function renderOutlook(o) {
+            const card = document.getElementById('outlook-card');
+            if (!o || !o.s || !o.k || !o.k.length) { card.style.display = 'none'; return; }
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const todayIso = isoLocal(today);
+            const byDate = {};
+            const start = dayFromIso(o.s);
+            o.k.forEach((k, i) => {
+                const d = new Date(start); d.setDate(start.getDate() + i);
+                byDate[isoLocal(d)] = k;
+            });
+            const future = Object.keys(byDate).filter(d => d >= todayIso).sort();
+            if (!future.length) { card.style.display = 'none'; return; }
+
+            const grid = document.getElementById('cal-grid');
+            grid.innerHTML = '';
+            const first = dayFromIso(future[0]);
+            const last = dayFromIso(future[future.length - 1]);
+            const cur = new Date(first); cur.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+            const end = new Date(last); end.setDate(last.getDate() + (6 - (last.getDay() + 6) % 7));
+            const detail = document.getElementById('cal-detail');
+            let firstCell = true;
+            while (cur <= end) {
+                const iso = isoLocal(cur);
+                const k = byDate[iso];
+                const active = k !== undefined && iso >= todayIso;
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell ' + (active ? 'lv' + kpLevel(k) : 'empty') + (iso === todayIso ? ' today' : '');
+                const m = document.createElement('div'); m.className = 'cal-m';
+                m.textContent = (cur.getDate() === 1 || (firstCell && active)) ? MONTHS_RU[cur.getMonth()] : '';
+                const d = document.createElement('div'); d.className = 'cal-d'; d.textContent = cur.getDate();
+                const kk = document.createElement('div'); kk.className = 'cal-k'; kk.textContent = active ? 'Kp ' + k : '';
+                cell.append(m, d, kk);
+                if (active) {
+                    firstCell = false;
+                    const dayCopy = new Date(cur);
+                    cell.addEventListener('click', () => {
+                        grid.querySelectorAll('.cal-cell.sel').forEach(c => c.classList.remove('sel'));
+                        cell.classList.add('sel');
+                        detail.textContent = dayTitle(dayCopy) + ' — Kp ' + k + ', ' + kpWord(k);
+                        if (typeof triggerHaptic === 'function') triggerHaptic('light');
+                    });
+                }
+                grid.appendChild(cell);
+                cur.setDate(cur.getDate() + 1);
+            }
+
+            const storms = future.filter(d => byDate[d] >= 5);
+            const weak = future.filter(d => byDate[d] === 4);
+            const fmtD = iso => { const d = dayFromIso(iso); return d.getDate() + ' ' + MONTHS_RU[d.getMonth()]; };
+            let sum = storms.length
+                ? '⚠️ Возможны бури: ' + storms.map(d => fmtD(d) + ' (Kp ' + byDate[d] + ')').join(', ')
+                : '✅ Бурь не ожидается';
+            if (weak.length) sum += '<br>🟡 Возмущения: ' + weak.map(fmtD).join(', ');
+            document.getElementById('cal-sum').innerHTML = sum;
+            document.getElementById('cal-note').textContent =
+                'Долгосрочный прогноз NOAA' + (o.i ? ' от ' + fmtD(o.i) : '') +
+                '. Строится по 27-дневному обороту Солнца и уточняется ближе к дате.';
+            card.style.display = 'block';
+        }
+
         function renderWeather(w) {
             if (!w) return;
             document.getElementById('weather-card').style.display = 'block';
@@ -636,6 +902,7 @@
                 pressHtml += ' <span class="press-badge stable">✅ Стабильно</span>';
             }
             document.getElementById('w-press').innerHTML = pressHtml;
+            renderParts(w.parts);
         }
 
         function kpDescription(kp) {
@@ -755,11 +1022,26 @@
                 console.warn("NOAA fetch error:", err);
             }
 
+            // 1b. 27-дневный прогноз NOAA для календаря (если браузер пропустит запрос)
+            try {
+                const res = await fetch("https://services.swpc.noaa.gov/text/27-day-outlook.txt?_t=" + Date.now());
+                if (res.ok) {
+                    const o = parseOutlookText(await res.text());
+                    if (o) {
+                        if (!payloadData) payloadData = {};
+                        payloadData.o = o;
+                        renderOutlook(o);
+                    }
+                }
+            } catch (err) {
+                console.warn("Outlook fetch error:", err);
+            }
+
             // 2. Open-Meteo Weather (use pressure_msl for sea-level reduced atmospheric pressure)
             const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
             const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,weather_code&_t=${Date.now()}`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,weather_code&hourly=temperature_2m,weather_code,precipitation,precipitation_probability&forecast_days=2&timezone=auto&_t=${Date.now()}`;
                 const res = await fetch(url);
                 const wData = await res.json();
                 if (wData && wData.current) {
@@ -773,6 +1055,12 @@
                         const wm = wmoWeather(cur.weather_code);
                         payloadData.w.icon = wm.icon;
                         payloadData.w.desc = wm.desc;
+                    }
+                    try {
+                        const liveParts = partsFromOpenMeteo(wData);
+                        if (liveParts && liveParts.length) payloadData.w.parts = liveParts;
+                    } catch (e) {
+                        console.warn("Day parts error:", e);
                     }
                     renderWeather(payloadData.w);
                     updated = true;
@@ -1019,6 +1307,9 @@
                     manualRefresh();
                 }
 
+                if (payloadData.o) {
+                    try { renderOutlook(payloadData.o); } catch (e) { console.warn("Outlook render error:", e); }
+                }
                 if (payloadData.kp) {
                     renderStorm(payloadData.kp);
                 } else {
