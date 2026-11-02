@@ -3,388 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Health & Weather Dashboard</title>
+    <title>Дневник самочувствия</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
     <style>
+        /* Экран дневника: погодная плашка сверху, ниже секции, разделённые линиями. Цвета — «полярная ночь» и сияние. */
         :root {
-            --bg: var(--tg-theme-bg-color, #121214);
-            --text: var(--tg-theme-text-color, #ffffff);
-            --hint: var(--tg-theme-hint-color, #9e9ea7);
-            --card: rgba(255, 255, 255, 0.06);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --card-glow: rgba(0, 0, 0, 0.3);
-            --primary: #667eea;
-            --success: #43e97b;
-            --warning: #f6d365;
-            --danger: #ff0844;
+            --bg: #ffffff;
+            --well: #f4f6fb;
+            --ink: #1c2140;
+            --muted: #5e6587;
+            --line: #e3e6f1;
+            --aurora: #13866f;
+            --aurora-wash: rgba(19, 134, 111, 0.10);
+            --on-aurora: #ffffff;
+            --good: #2f9e7d;
+            --normal: #c28b0e;
+            --bad: #c93a63;
+            --kp0: #8fcfbd;
+            --kp4: #e2b33a;
+            --kp5: #e2703f;
+            --kp7: #c93a63;
+            --bp-dia: #3f5f9f;
+            --display: "Unbounded", "Golos Text", "Segoe UI", sans-serif;
+            --body: "Golos Text", "Segoe UI", Roboto, sans-serif;
+            color-scheme: light;
         }
+        :root[data-theme="dark"] {
+            --bg: #161a35; --well: #222750; --ink: #eceffa; --muted: #a3a9cb; --line: #2c3263;
+            --aurora: #5ed6bc; --aurora-wash: rgba(94, 214, 188, 0.13); --on-aurora: #10132a;
+            --good: #5ccfa8; --normal: #e8b84a; --bad: #f0708f;
+            --kp0: #3f8f7c; --kp4: #d9a63a; --kp5: #e57a4a; --kp7: #e8577c;
+            --bp-dia: #8aa4f0;
+            color-scheme: dark;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; }
+        body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+        button, input { font: inherit; color: inherit; }
+        :focus-visible { outline: 2px solid var(--aurora); outline-offset: 2px; }
+        .app { max-width: 560px; margin: 0 auto; padding-bottom: 24px; }
+        [hidden] { display: none !important; }
 
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+        /* ---------- погода ---------- */
+        .wx-wrap { padding: 12px 12px 4px; }
+        .wx { --wx-top: #3f5f9f; --wx-bottom: #8aa4d4; background: linear-gradient(170deg, var(--wx-top), var(--wx-bottom));
+              color: #ffffff; border-radius: 26px; padding: 16px 18px 14px; display: grid; gap: 14px; }
+        .wx[data-sky="clear"] { --wx-top: #2f74c8; --wx-bottom: #79b4ea; }
+        .wx[data-sky="cloudy"] { --wx-top: #3f5f9f; --wx-bottom: #8aa4d4; }
+        .wx[data-sky="rain"] { --wx-top: #34425f; --wx-bottom: #6a7896; }
+        .wx[data-sky="snow"] { --wx-top: #4f6f9c; --wx-bottom: #9fb6d6; }
+        .wx[data-sky="night"] { --wx-top: #151d48; --wx-bottom: #34457f; }
+        .wx-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .wx-head b { font-size: 17px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wx-refresh { flex: none; border: 0; background: rgba(255, 255, 255, 0.16); color: #ffffff; border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
+        .wx-refresh.busy { opacity: .6; }
+        .wx-main { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
+        .wx-temp { font-family: var(--display); font-weight: 500; font-size: 68px; line-height: .95; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+        .wx-side { display: grid; gap: 2px; font-size: 13.5px; color: rgba(255, 255, 255, .82); justify-items: end; text-align: right; }
+        .wx-side .wx-icon { font-size: 34px; line-height: 1; }
+        .wx-side b { color: #ffffff; font-size: 15px; font-weight: 600; }
+        .wx-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .wx-pill { background: rgba(255, 255, 255, .16); border-radius: 14px; padding: 8px 10px; font-size: 12.5px; color: rgba(255, 255, 255, .82); display: grid; gap: 1px; min-width: 0; }
+        .wx-pill b { color: #ffffff; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .wx-pill i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+        .wx-parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; border-top: 1px solid rgba(255, 255, 255, .18); padding-top: 12px; }
+        .wx-part { text-align: center; display: grid; gap: 2px; font-size: 12px; color: rgba(255, 255, 255, .82); }
+        .wx-part .ic { font-size: 22px; line-height: 1.2; }
+        .wx-part b { color: #ffffff; font-size: 13.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .wx-part .rain { min-height: 16px; }
 
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            user-select: none;
-        }
+        /* ---------- секции ---------- */
+        .sec { padding: 20px 16px; display: grid; gap: 12px; border-bottom: 1px solid var(--line); }
+        .sec h3 { margin: 0; font-size: 16.5px; font-weight: 700; }
+        .sub { margin: -8px 0 0; font-size: 13px; color: var(--muted); }
+        .ask { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.2; margin: 0; }
+        .marks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .mark { border: 1.5px solid var(--line); background: var(--bg); border-radius: 18px; padding: 14px 4px 12px; display: grid; justify-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        .mark .dot { width: 30px; height: 30px; border-radius: 50%; border: 3px solid currentColor; }
+        .mark[data-v="good"] .dot { color: var(--good); }
+        .mark[data-v="normal"] .dot { color: var(--normal); }
+        .mark[data-v="bad"] .dot { color: var(--bad); }
+        .mark[aria-pressed="true"] { border-color: var(--ink); background: var(--well); }
+        .mark[aria-pressed="true"] .dot { background: currentColor; }
+        .follow { display: grid; gap: 12px; }
+        .follow p, .hint { margin: 0; font-size: 14px; color: var(--muted); }
+        .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tag { border: 1.5px solid var(--line); background: none; border-radius: 999px; padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
+        .tag[aria-pressed="true"] { border-color: var(--aurora); background: var(--aurora-wash); }
+        .bp-in { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .bp-in label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+        .bp-in input { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; background: var(--well); color: var(--ink); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .check { display: flex; gap: 10px; align-items: center; font-size: 14px; cursor: pointer; }
+        .check input { width: 20px; height: 20px; accent-color: var(--aurora); flex: none; }
+        .err { color: var(--bad); font-size: 13.5px; margin: 0; }
+        .primary { border: 0; border-radius: 14px; padding: 13px; font-weight: 700; background: var(--aurora); color: var(--on-aurora); cursor: pointer; }
+        .secondary { border: 1.5px solid var(--line); background: none; border-radius: 14px; padding: 11px; font-weight: 600; cursor: pointer; }
+        .done { background: var(--aurora-wash); border-radius: 14px; padding: 12px 14px; font-size: 14px; }
+        .done b { display: block; margin-bottom: 2px; }
+        .ghost { background: none; border: 0; padding: 0; color: var(--aurora); font-weight: 600; cursor: pointer; justify-self: start; font-size: 14px; }
 
-        /* Top status bar */
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 8px 14px;
-            font-size: 13px;
-        }
+        /* ---------- «Вы и небо» ---------- */
+        .sky { display: grid; grid-template-columns: 50px repeat(14, minmax(0, 1fr)); column-gap: 3px; row-gap: 6px; align-items: end; }
+        .lane { font-size: 11px; color: var(--muted); line-height: 1.15; align-self: center; }
+        .kpbar { height: 64px; display: flex; align-items: flex-end; position: relative; cursor: pointer; }
+        .kpbar span { width: 100%; border-radius: 5px 5px 2px 2px; display: block; position: relative; z-index: 1; }
+        .kpbar.empty span { background: var(--well); height: 6px; }
+        .kpbar.storm::before { content: ""; position: absolute; inset: -4px -1px -82px; border-radius: 8px; background: var(--aurora-wash); pointer-events: none; }
+        .cell { height: 22px; display: grid; place-items: center; position: relative; z-index: 1; cursor: pointer; }
+        .press { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--ink); opacity: .75; display: inline-block; }
+        .you { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+        .you.none { border: 1.5px dashed var(--line); }
+        .day { font-size: 10.5px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; cursor: pointer; }
+        .day.sel { color: var(--ink); font-weight: 700; }
+        .skyinfo { font-size: 13.5px; min-height: 42px; background: var(--well); border-radius: 12px; padding: 9px 12px; }
+        .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12px; color: var(--muted); }
+        .legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .legend .you { width: 11px; height: 11px; }
 
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--hint);
-        }
+        .insight { font-size: 15.5px; line-height: 1.45; margin: 0; }
+        .insight strong { font-family: var(--display); font-weight: 700; font-size: 15px; }
+        .meter { display: grid; gap: 5px; font-size: 12.5px; color: var(--muted); }
+        .meter-track { height: 6px; background: var(--well); border-radius: 99px; overflow: hidden; }
+        .meter-track i { display: block; height: 100%; background: var(--aurora); border-radius: 99px; }
+        .sym { display: grid; gap: 10px; }
+        .sym-row { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13.5px; }
+        .pair { display: grid; gap: 3px; }
+        .pair i { display: block; height: 7px; border-radius: 99px; }
 
-        .dot-live {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--success);
-            box-shadow: 0 0 8px var(--success);
-            animation: pulse 2s infinite;
-        }
+        /* ---------- давление (тонометр) ---------- */
+        .bp-last { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .bp-num { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+        .bp-meta { font-size: 13.5px; color: var(--muted); }
+        .bp-chart { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; height: 120px; position: relative; padding-right: 26px; }
+        .bp-col { position: relative; }
+        .bp-col span { position: absolute; left: 50%; width: 7px; transform: translateX(-50%); border-radius: 4px; }
+        .bp-col.storm span { background: var(--kp5); }
+        .bp-col.calm span { background: var(--bp-dia); opacity: .7; }
+        .bp-col i { position: absolute; left: -6px; right: -6px; text-align: center; font-size: 9.5px; color: var(--muted); font-style: normal; bottom: -17px; white-space: nowrap; }
+        .bp-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); height: 0; }
+        .bp-line em { position: absolute; right: 0; top: -8px; font-style: normal; font-size: 10px; color: var(--muted); }
+        .bp-cmp { font-size: 14px; margin: 0; }
 
-        @keyframes pulse {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.15); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.8; }
-        }
+        /* ---------- впереди ---------- */
+        .ahead { display: grid; gap: 10px; }
+        .ahead-day { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: center; }
+        .kpbig { font-family: var(--display); font-weight: 700; font-size: 20px; text-align: center; border-radius: 14px; padding: 8px 0; color: #ffffff; font-variant-numeric: tabular-nums; }
+        .ahead-day p { margin: 0; font-size: 13.5px; }
+        .ahead-day p b { display: block; font-size: 14.5px; }
+        .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+        .sw { width: 46px; height: 28px; border-radius: 99px; border: 0; background: var(--line); position: relative; cursor: pointer; flex: none; }
+        .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #ffffff; transition: transform .2s; }
+        .sw[aria-checked="true"] { background: var(--aurora); }
+        .sw[aria-checked="true"]::after { transform: translateX(18px); }
 
-        .btn-refresh {
-            background: rgba(255, 255, 255, 0.1);
-            border: none;
-            color: var(--text);
-            border-radius: 10px;
-            padding: 5px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.2s ease;
-        }
-
-        .btn-refresh:active {
-            transform: scale(0.95);
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .spin {
-            animation: rotate 0.8s linear infinite;
-        }
-
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        /* Card styles */
-        .card {
-            background: var(--card);
-            backdrop-filter: blur(12px);
-            border-radius: 20px;
-            padding: 18px;
-            border: 1px solid var(--card-border);
-            box-shadow: 0 8px 24px var(--card-glow);
-            transition: transform 0.2s ease;
-        }
-
-        h2 {
-            margin: 0 0 10px 0;
-            font-size: 17px;
-            font-weight: 700;
-            text-align: center;
-            letter-spacing: -0.2px;
-        }
-
-        .tip-text {
-            font-size: 13.5px;
-            text-align: center;
-            line-height: 1.4;
-            color: var(--hint);
-            margin-bottom: 12px;
-            padding: 0 8px;
-        }
-
-        .analytics-badge {
-            background: rgba(67, 233, 123, 0.12);
-            border: 1px solid rgba(67, 233, 123, 0.3);
-            border-radius: 12px;
-            padding: 8px 12px;
-            font-size: 14px;
-            text-align: center;
-            font-weight: 700;
-            color: var(--success);
-            margin-bottom: 12px;
-        }
-
-        /* Weather Card */
-        .weather-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .city {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--hint);
-        }
-
-        .temp-row {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .temp {
-            font-size: 44px;
-            font-weight: 800;
-            letter-spacing: -1px;
-        }
-
-        .weather-icon {
-            font-size: 40px;
-        }
-
-        .details {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13.5px;
-            color: var(--hint);
-            margin-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            padding-top: 8px;
-        }
-
-        /* Прогноз по частям суток */
-        .parts {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .part {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-            padding: 8px 2px;
-            min-width: 0;
-        }
-        .part-l { font-size: 12px; font-weight: 600; color: var(--hint); }
-        .part-z { font-size: 10px; color: var(--hint); opacity: 0.8; min-height: 12px; }
-        .part-i { font-size: 22px; margin: 2px 0; }
-        .part-t { font-size: 13px; font-weight: 700; white-space: nowrap; }
-        .part-r { font-size: 11px; color: #7fb3ff; min-height: 14px; margin-top: 2px; }
-
-        /* Календарь бурь */
-        .cal-head, .cal-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 4px;
-        }
-        .cal-head div {
-            text-align: center;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--hint);
-            padding-bottom: 2px;
-        }
-        .cal-cell {
-            border-radius: 10px;
-            padding: 5px 0 4px;
-            text-align: center;
-            min-height: 40px;
-            background: rgba(255, 255, 255, 0.03);
-            cursor: pointer;
-            border: 1.5px solid transparent;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .cal-cell.empty { background: transparent; cursor: default; opacity: 0.35; }
-        .cal-cell.today { border-color: var(--primary); }
-        .cal-cell.sel { border-color: var(--text); }
-        .cal-m { font-size: 9px; line-height: 10px; min-height: 10px; color: var(--hint); text-transform: uppercase; }
+        /* ---------- календарь бурь ---------- */
+        .cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .cal-head div { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); }
+        .cal-cell { border-radius: 10px; padding: 5px 0 4px; text-align: center; min-height: 40px; background: var(--well); cursor: pointer; border: 1.5px solid transparent; }
+        .cal-cell.empty { background: transparent; cursor: default; opacity: .35; }
+        .cal-cell.today { border-color: var(--aurora); }
+        .cal-cell.sel { border-color: var(--ink); }
+        .cal-m { font-size: 9px; line-height: 10px; min-height: 10px; color: var(--muted); }
         .cal-d { font-size: 14px; font-weight: 700; line-height: 17px; }
-        .cal-k { font-size: 10px; line-height: 12px; color: var(--hint); }
-        .lv0 { background: rgba(67, 233, 123, 0.14); }
-        .lv1 { background: rgba(246, 211, 101, 0.28); }
-        .lv2 { background: rgba(255, 140, 60, 0.38); }
-        .lv3 { background: rgba(255, 8, 68, 0.42); }
-        .cal-detail {
-            margin-top: 10px;
-            min-height: 20px;
-            font-size: 14px;
-            text-align: center;
-            font-weight: 600;
-        }
-        .cal-sum { margin-top: 8px; font-size: 13.5px; line-height: 1.45; text-align: center; }
-        .cal-legend {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
-            font-size: 11.5px;
-            color: var(--hint);
-        }
-        .cal-legend span::before {
-            content: "";
-            display: inline-block;
-            width: 9px; height: 9px;
-            border-radius: 3px;
-            margin-right: 4px;
-            vertical-align: -1px;
-            background: var(--sw);
-        }
-        .cal-note { margin-top: 8px; font-size: 11.5px; color: var(--hint); text-align: center; line-height: 1.35; }
+        .cal-k { font-size: 10px; line-height: 12px; color: var(--muted); }
+        .lv0 { background: color-mix(in srgb, var(--kp0) 30%, transparent); }
+        .lv1 { background: color-mix(in srgb, var(--kp4) 40%, transparent); }
+        .lv2 { background: color-mix(in srgb, var(--kp5) 48%, transparent); }
+        .lv3 { background: color-mix(in srgb, var(--kp7) 52%, transparent); }
+        .cal-detail { min-height: 20px; font-size: 14px; font-weight: 600; }
+        .cal-sum { font-size: 13.5px; line-height: 1.45; }
+        .cal-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
+        .cal-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; background: var(--sw); }
+        .cal-note { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 
-        /* Storm Card */
-        .kp-value {
-            font-size: 42px;
-            font-weight: 850;
-            text-align: center;
-            letter-spacing: -1px;
-            margin: 4px 0;
-        }
+        .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .tool { border: 1.5px solid var(--line); background: none; border-radius: 14px; padding: 12px; text-align: left; cursor: pointer; display: grid; gap: 2px; }
+        .tool b { font-size: 14px; }
+        .tool span { color: var(--muted); font-size: 12.5px; }
+        .fine { font-size: 11.5px; color: var(--muted); margin: 0; }
+        .empty-note { font-size: 14px; color: var(--muted); margin: 0; }
 
-        .kp-text {
-            text-align: center;
-            font-size: 14.5px;
-            font-weight: 500;
-            color: var(--hint);
-        }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-        .kp-good { color: var(--success); text-shadow: 0 0 16px rgba(67, 233, 123, 0.3); }
-        .kp-warn { color: var(--warning); text-shadow: 0 0 16px rgba(246, 211, 101, 0.3); }
-        .kp-danger { color: var(--danger); text-shadow: 0 0 16px rgba(255, 8, 68, 0.4); }
-
-        /* Wellbeing Buttons */
-        .btn-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 4px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 14px 6px;
-            border-radius: 16px;
-            border: none;
-            cursor: pointer;
-            transition: transform 0.15s ease, filter 0.15s ease;
-        }
-
-        .btn:active {
-            transform: scale(0.95);
-            filter: brightness(0.9);
-        }
-
-        .btn-good { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-        .btn-normal { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
-        .btn-bad { background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%); }
-
-        .btn-icon {
-            font-size: 24px;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .btn-text {
-            font-size: 13.5px;
-            font-weight: 800;
-            color: #1a1a1a;
-        }
-
-        /* Share and Story Buttons */
-        .btn-story {
-            width: 100%;
-            padding: 14px 0;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            cursor: pointer;
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text);
-            font-size: 15px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .btn-story:active {
-            transform: scale(0.98);
-            background: rgba(255, 255, 255, 0.14);
-        }
-
-        .btn-share {
-            width: 100%;
-            padding: 15px 0;
-            border-radius: 16px;
-            border: none;
-            cursor: pointer;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 15.5px;
-            font-weight: 700;
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
-            transition: all 0.2s ease;
-        }
-
-        .btn-share:active {
-            transform: scale(0.98);
-            filter: brightness(0.95);
-        }
-
-        /* Pressure badge */
-        .press-badge {
-            display: inline-block;
-            font-size: 11px;
-            padding: 2px 7px;
-            border-radius: 8px;
-            margin-left: 6px;
-            font-weight: 600;
-            vertical-align: middle;
-        }
-        .press-badge.saw {
-            background: rgba(255, 8, 68, 0.2);
-            color: #ff4d6d;
-            border: 1px solid rgba(255, 8, 68, 0.4);
-        }
-        .press-badge.stable {
-            background: rgba(67, 233, 123, 0.15);
-            color: #43e97b;
-            border: 1px solid rgba(67, 233, 123, 0.3);
-        }
-
-        /* Modal for Stories Preview */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -499,86 +302,148 @@
             background: linear-gradient(135deg, #10b981, #059669);
             color: #fff;
         }
-
     </style>
 </head>
 <body>
+<div class="app">
 
-    <!-- Header Status Bar with Live Update & Refresh -->
-    <div class="status-bar">
-        <div class="status-indicator">
-            <span class="dot-live"></span>
-            <span id="sync-status">Актуально</span>
-            <span id="sync-time" style="opacity: 0.7;"></span>
+    <!-- Погода -->
+    <div class="wx-wrap">
+        <section class="wx" id="wx" data-sky="cloudy" aria-label="Погода сейчас">
+            <div class="wx-head"><b id="w-city">Загрузка…</b><button class="wx-refresh" id="btn-refresh" onclick="manualRefresh()"><span id="sync-status">Обновить</span></button></div>
+            <div class="wx-main">
+                <div class="wx-temp" id="w-temp">--°</div>
+                <div class="wx-side">
+                    <span class="wx-icon" id="w-icon" aria-hidden="true">⛅</span>
+                    <b id="w-desc">—</b>
+                    <span id="w-feels"></span>
+                    <span id="w-wind"></span>
+                </div>
+            </div>
+            <div class="wx-meta">
+                <div class="wx-pill">Давление<b id="w-press">—</b></div>
+                <div class="wx-pill">Магнитный фон<b id="kp-now"><i id="kp-dot" style="background:var(--kp0)"></i><span id="kp-text">—</span></b></div>
+            </div>
+            <div class="wx-parts" id="w-parts" hidden></div>
+        </section>
+    </div>
+
+    <!-- Отметка -->
+    <section class="sec" id="checkin" aria-label="Отметка самочувствия">
+        <p class="ask" id="ask">Как вы сегодня?</p>
+        <div class="done" id="today-done" hidden></div>
+        <div class="marks" role="group" aria-label="Самочувствие" id="marks">
+            <button class="mark" data-v="good" aria-pressed="false" id="m-good"><span class="dot"></span>Хорошо</button>
+            <button class="mark" data-v="normal" aria-pressed="false" id="m-normal"><span class="dot"></span>Так себе</button>
+            <button class="mark" data-v="bad" aria-pressed="false" id="m-bad"><span class="dot"></span>Плохо</button>
         </div>
-        <button class="btn-refresh" id="btn-refresh" onclick="manualRefresh()">
-            <span id="refresh-icon">🔄</span>
-            <span>Обновить</span>
-        </button>
-    </div>
+        <div class="follow" id="follow" hidden>
+            <p id="follow-q">Что беспокоит? Можно выбрать несколько.</p>
+            <div class="tags" id="tags"></div>
+            <button class="ghost" id="add-bp" type="button">+ Записать давление по тонометру</button>
+            <div class="bp-in" id="bp-in-1" hidden>
+                <label for="bp-s1">Верхнее<input id="bp-s1" inputmode="numeric" maxlength="3" placeholder="120"></label>
+                <label for="bp-d1">Нижнее<input id="bp-d1" inputmode="numeric" maxlength="3" placeholder="80"></label>
+                <label for="bp-p1">Пульс<input id="bp-p1" inputmode="numeric" maxlength="3" placeholder="—"></label>
+            </div>
+            <label class="check"><input type="checkbox" id="want-note"> Допишу заметку в чате: что принимал, когда стало легче</label>
+            <p class="err" id="err-1" hidden></p>
+            <button class="primary" id="save">Сохранить запись</button>
+            <p class="fine">Запись уйдёт в чат с ботом, приложение закроется.</p>
+        </div>
+    </section>
 
-    <!-- Weather Card -->
-    <div class="card" id="weather-card">
-        <div class="weather-top"><div class="city" id="w-city">📍 Загрузка...</div></div>
-        <div class="temp-row"><div class="weather-icon" id="w-icon">⛅</div><div class="temp" id="w-temp">--°</div></div>
-        <div class="details"><span id="w-desc">Синхронизация данных...</span><span id="w-press"></span></div>
-        <div class="parts" id="w-parts" style="display:none"></div>
-    </div>
+    <!-- Вы и небо -->
+    <section class="sec" aria-label="Вы и небо">
+        <h3>Вы и небо за 2 недели</h3>
+        <p class="sub">Подсвечены дни с бурей. Нажмите на день.</p>
+        <div class="sky" id="sky"></div>
+        <div class="skyinfo" id="skyinfo"></div>
+        <div class="legend">
+            <span><i class="you" style="background:var(--good)"></i>хорошо</span>
+            <span><i class="you" style="background:var(--normal)"></i>так себе</span>
+            <span><i class="you" style="background:var(--bad)"></i>плохо</span>
+            <span><i class="press"></i>резкий перепад атм. давления</span>
+        </div>
+    </section>
 
-    <!-- Storm Card -->
-    <div class="card" id="storm-card">
-        <h2>Магнитная обстановка</h2>
-        <div class="kp-value kp-good" id="kp-val">Kp --</div>
-        <div class="kp-text" id="kp-desc">Подключение к NOAA SWPC...</div>
-    </div>
+    <!-- Вывод -->
+    <section class="sec" aria-label="Что видно по записям">
+        <h3>Что видно по записям</h3>
+        <p class="insight" id="insight"></p>
+        <div class="meter"><span id="meter-t"></span><div class="meter-track"><i id="meter-i" style="width:0"></i></div></div>
+    </section>
 
-    <!-- Outlook Calendar Card -->
-    <div class="card" id="outlook-card" style="display:none">
-        <h2>Бури на месяц</h2>
+    <!-- Симптомы -->
+    <section class="sec" id="sym-sec" aria-label="Когда что беспокоит" hidden>
+        <h3>Когда что беспокоит</h3>
+        <div class="legend">
+            <span><i class="you" style="background:var(--kp5);border-radius:3px"></i>в дни бурь</span>
+            <span><i class="you" style="background:var(--kp0);border-radius:3px"></i>в спокойные дни</span>
+        </div>
+        <div class="sym" id="sym"></div>
+    </section>
+
+    <!-- Давление (тонометр) -->
+    <section class="sec" id="bp-sec" aria-label="Давление по тонометру">
+        <h3>Давление по тонометру</h3>
+        <div class="follow" id="bp-has" hidden>
+            <div class="bp-last"><span class="bp-num" id="bp-num"></span><span class="bp-meta" id="bp-meta"></span></div>
+            <p class="hint" id="bp-level"></p>
+            <div style="padding: 6px 0 20px"><div class="bp-chart" id="bp-chart"></div></div>
+            <p class="bp-cmp" id="bp-cmp"></p>
+        </div>
+        <p class="empty-note" id="bp-empty">Записывайте показания тонометра — бот покажет, меняется ли ваше давление в дни бурь, и добавит его в отчёт для врача.</p>
+        <button class="secondary" id="bp-open">Записать давление</button>
+        <div class="follow" id="bp-form" hidden>
+            <div class="bp-in">
+                <label for="bp-s2">Верхнее<input id="bp-s2" inputmode="numeric" maxlength="3" placeholder="120"></label>
+                <label for="bp-d2">Нижнее<input id="bp-d2" inputmode="numeric" maxlength="3" placeholder="80"></label>
+                <label for="bp-p2">Пульс<input id="bp-p2" inputmode="numeric" maxlength="3" placeholder="—"></label>
+            </div>
+            <p class="err" id="err-2" hidden></p>
+            <button class="primary" id="bp-save">Сохранить давление</button>
+        </div>
+    </section>
+
+    <!-- Впереди -->
+    <section class="sec" aria-label="Впереди">
+        <h3>Впереди</h3>
+        <div class="ahead" id="ahead"></div>
+        <div class="toggle"><span>Предупредить вечером накануне бури</span><button class="sw" role="switch" aria-checked="true" aria-label="Предупредить накануне бури" id="sw-eve"></button></div>
+        <div class="toggle"><span id="rem-label">Напоминать отметиться в 20:00</span><button class="sw" role="switch" aria-checked="false" aria-label="Ежедневное напоминание" id="sw-rem"></button></div>
+        <p class="fine">Переключатели сохраняются через чат с ботом. Время напоминания меняется в настройках бота, раздел «Уведомления».</p>
+    </section>
+
+    <!-- Календарь бурь -->
+    <section class="sec" id="outlook-card" aria-label="Бури на месяц" hidden>
+        <h3>Бури на месяц</h3>
         <div class="cal-head"><div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div></div>
         <div class="cal-grid" id="cal-grid"></div>
         <div class="cal-detail" id="cal-detail">Нажмите на день, чтобы увидеть прогноз</div>
         <div class="cal-sum" id="cal-sum"></div>
         <div class="cal-legend">
-            <span style="--sw: rgba(67,233,123,0.6)">спокойно</span>
-            <span style="--sw: rgba(246,211,101,0.8)">возмущения</span>
-            <span style="--sw: rgba(255,140,60,0.9)">буря</span>
-            <span style="--sw: rgba(255,8,68,0.9)">сильная буря</span>
+            <span style="--sw: var(--kp0)">спокойно</span>
+            <span style="--sw: var(--kp4)">возмущения</span>
+            <span style="--sw: var(--kp5)">буря</span>
+            <span style="--sw: var(--kp7)">сильная буря</span>
         </div>
         <div class="cal-note" id="cal-note"></div>
-    </div>
+    </section>
 
-    <!-- Health Log Card -->
-    <div class="card" id="health-card">
-        <h2>Как вы сейчас?</h2>
-        <div id="cooldown-banner" style="display: none; background: rgba(246, 211, 101, 0.12); border: 1px solid rgba(246, 211, 101, 0.3); border-radius: 12px; padding: 10px; font-size: 13.5px; text-align: center; color: var(--warning); margin-bottom: 12px; line-height: 1.4;">
-            ⏳ <b>Вы уже отметили самочувствие!</b><br>
-            <span id="cooldown-timer" style="font-size: 12px; opacity: 0.85;"></span>
+    <!-- Инструменты -->
+    <section class="sec" aria-label="Поделиться и выгрузить" style="border-bottom:0">
+        <div class="tools">
+            <button class="tool" onclick="openBot('report')"><b>Отчёт для врача</b><span>PDF за 30 дней</span></button>
+            <button class="tool" onclick="openStoryModal()"><b>Карточка в Stories</b><span>Погода и Kp сегодня</span></button>
+            <button class="tool" onclick="openBot('invite')"><b>Пригласить друга</b><span>Ваша ссылка</span></button>
+            <button class="tool" onclick="openBot('records')"><b>Все записи</b><span>В чате с ботом</span></button>
         </div>
-        <div class="btn-row" id="health-btn-row">
-            <button class="btn btn-good" onclick="handleSend('good')"><span class="btn-icon">🟢</span><span class="btn-text">Отлично</span></button>
-            <button class="btn btn-normal" onclick="handleSend('normal')"><span class="btn-icon">🟡</span><span class="btn-text">Нормально</span></button>
-            <button class="btn btn-bad" onclick="handleSend('bad')"><span class="btn-icon">🔴</span><span class="btn-text">Плохо</span></button>
-        </div>
-    </div>
+        <p class="fine">Это наблюдение по вашим отметкам, а не диагноз. Если вам плохо, обратитесь к врачу.</p>
+    </section>
+</div>
 
-    <!-- Analytics & Chart Card -->
-    <div class="card" style="padding: 16px 12px;">
-        <div class="analytics-badge" id="analytics-text" style="display: none;"></div>
-        <div class="tip-text" id="tip-text" style="display: none;"></div>
-        <canvas id="diaryChart"></canvas>
-        <div style="margin-top: 10px; font-size: 11.5px; color: #64748b; line-height: 1.4; text-align: center; padding: 0 8px;">
-            ⚠️ Информация носит ознакомительный характер, основана на статистике и не является медицинским диагнозом или назначением. При плохом самочувствии обратитесь к врачу.
-        </div>
-    </div>
-    
-    <!-- Action Buttons -->
-    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; margin-bottom: 12px;">
-        <button class="btn-story" onclick="openStoryModal()">📸 Создать Stories-карточку</button>
-        <button class="btn-share" onclick="shareApp()">Поделиться трекером 🚀</button>
-    </div>
-
-    <!-- Story Preview Modal -->
+<!-- Story Preview Modal -->
     <div id="story-modal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
@@ -601,158 +466,81 @@
     </div>
     <canvas id="storyCanvas" width="1080" height="1920" style="display: none;"></canvas>
 
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.ready();
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.ready();
+    let payloadData = null;
 
-        let payloadData = null;
-        let chartInstance = null;
+    function applyTheme() {
+        const scheme = (tg && tg.colorScheme) || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = scheme === 'dark' ? 'dark' : 'light';
+        try {
+            const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+            if (tg.setBackgroundColor) tg.setBackgroundColor(bg);
+            if (tg.setHeaderColor) tg.setHeaderColor(bg);
+        } catch (e) {}
+    }
+    applyTheme();
+    try { tg.onEvent('themeChanged', applyTheme); } catch (e) {}
 
-        function triggerHaptic(type = 'light') {
-            try {
-                if (tg && tg.HapticFeedback) {
-                    if (type === 'error' || type === 'success' || type === 'warning') {
-                        tg.HapticFeedback.notificationOccurred(type);
-                    } else {
-                        tg.HapticFeedback.impactOccurred(type);
-                    }
-                }
-            } catch (e) {}
-        }
-
-        function updateCooldownState() {
-            if (!payloadData || !payloadData.cd) return;
-            
-            const nowSec = Math.floor(Date.now() / 1000);
-            if (!payloadData.cd.until && payloadData.cd.rem_min > 0) {
-                payloadData.cd.until = nowSec + (payloadData.cd.rem_min * 60);
+    function triggerHaptic(type = 'light') {
+        try {
+            if (tg && tg.HapticFeedback) {
+                if (type === 'error' || type === 'success' || type === 'warning') tg.HapticFeedback.notificationOccurred(type);
+                else tg.HapticFeedback.impactOccurred(type);
             }
+        } catch (e) {}
+    }
 
-            let remSec = 0;
-            if (payloadData.cd.until) {
-                remSec = payloadData.cd.until - nowSec;
-            } else if (payloadData.cd.rem_min) {
-                remSec = payloadData.cd.rem_min * 60;
-            }
-            
-            const banner = document.getElementById('cooldown-banner');
-            const timer = document.getElementById('cooldown-timer');
-            const btns = document.querySelectorAll('#health-btn-row .btn');
-            
-            if (remSec > 0 && payloadData.cd.active) {
-                const remMin = Math.ceil(remSec / 60);
-                payloadData.cd.rem_min = remMin;
-                banner.style.display = 'block';
-                timer.innerText = `Следующая отметка будет доступна через ~${remMin} мин.`;
-                btns.forEach(b => {
-                    b.style.opacity = '0.55';
-                    b.style.filter = 'grayscale(30%)';
-                });
-            } else {
-                payloadData.cd.active = false;
-                banner.style.display = 'none';
-                btns.forEach(b => {
-                    b.style.opacity = '1';
-                    b.style.filter = 'none';
-                });
-            }
+    // Связь с ботом — короткой ссылкой ?start=... (Mini App открыт из кнопки под сообщением)
+    function openBot(arg) {
+        triggerHaptic('medium');
+        const bot = ((payloadData && payloadData.bot) || 'magni_buriBot').replace('@', '');
+        const link = 'https://t.me/' + bot + '?start=' + arg;
+        try {
+            if (tg && typeof tg.openTelegramLink === 'function') tg.openTelegramLink(link);
+            else window.location.href = link;
+        } catch (e) { window.location.href = link; }
+        setTimeout(() => { try { tg.close(); } catch (e) {} }, 150);
+    }
+
+    const TAGS = [['h', 'Голова'], ['s', 'Плохой сон'], ['b', 'Скачет давление'], ['t', 'Слабость'], ['d', 'Головокружение'], ['j', 'Суставы']];
+    const TAG_NAME = Object.fromEntries(TAGS);
+    const S_WORD = { g: 'Хорошо', n: 'Так себе', b: 'Плохо' };
+    const S_COLOR = { g: 'var(--good)', n: 'var(--normal)', b: 'var(--bad)' };
+    const kpColor = k => k >= 7 ? 'var(--kp7)' : k >= 5 ? 'var(--kp5)' : k >= 4 ? 'var(--kp4)' : 'var(--kp0)';
+    const kpShort = k => k >= 7 ? 'сильная буря' : k >= 5 ? 'буря' : k >= 4 ? 'возмущения' : 'спокойно';
+    function fmtTemp(v) { const r = Math.round(v); return r > 0 ? '+' + r + '°' : r + '°'; }
+    function formatTime(d = new Date()) { const p = n => n < 10 ? '0' + n : n; return p(d.getHours()) + ':' + p(d.getMinutes()); }
+    function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t; }
+
+    function kpDescription(kp) {
+            const k = Math.round(Number(kp) || 0);
+            if (k < 4) return '🟢 Спокойное поле (бури нет)';
+            if (k === 4) return '🟡 Небольшие возмущения';
+            if (k === 5) return '🟠 G1 — слабая буря';
+            if (k === 6) return '🟠 G2 — умеренная буря';
+            if (k === 7) return '🔴 G3 — сильная буря';
+            if (k === 8) return '🔴 G4 — жёсткая буря';
+            return '🟣 G5 — экстремальная буря';
         }
 
-        function handleSend(status) {
-            updateCooldownState();
-            if (payloadData && payloadData.cd && payloadData.cd.active) {
-                triggerHaptic('error');
-                const rem = payloadData.cd.rem_min || 60;
-                tg.showAlert(`⏳ Вы уже отмечали самочувствие недавно!\nСледующая оценка будет доступна через ~${rem} мин.`);
-                return;
-            }
-            triggerHaptic('medium');
-            send(status);
+    function wmoWeather(code) {
+            if (code === 0) return { icon: '☀️', desc: 'Ясно' };
+            if (code === 1 || code === 2) return { icon: '🌤', desc: 'Переменная облачность' };
+            if (code === 3) return { icon: '☁️', desc: 'Пасмурно' };
+            if (code === 45 || code === 48) return { icon: '🌫', desc: 'Туман' };
+            if (code >= 51 && code <= 55) return { icon: '🌦', desc: 'Морось' };
+            if (code >= 61 && code <= 65) return { icon: '🌧', desc: 'Дождь' };
+            if (code >= 71 && code <= 77) return { icon: '❄️', desc: 'Снег' };
+            if (code >= 80 && code <= 82) return { icon: '🌧', desc: 'Ливень' };
+            if (code >= 85 && code <= 86) return { icon: '🌨', desc: 'Снегопад' };
+            if (code >= 95) return { icon: '⛈', desc: 'Гроза' };
+            return { icon: '⛅', desc: 'Облачно' };
         }
 
-        function send(status) {
-            const botUser = (payloadData && payloadData.bot) ? payloadData.bot.replace('@', '') : "magni_buriBot";
-            const isReply = payloadData && payloadData.src === 'reply';
-            
-            if (isReply) {
-                try {
-                    tg.sendData(JSON.stringify({ action: 'add_diary', status: status }));
-                    tg.close();
-                    return;
-                } catch (e) {
-                    console.warn("sendData failed, falling back to deep link:", e);
-                }
-            }
-
-            // Universal deep link: works 100% when opened from Inline Keyboard or Direct Link
-            const link = "https://t.me/" + botUser + "?start=log_" + status;
-            try {
-                if (tg && typeof tg.openTelegramLink === 'function') {
-                    tg.openTelegramLink(link);
-                } else {
-                    window.location.href = link;
-                }
-            } catch (e) {
-                window.location.href = link;
-            }
-            
-            setTimeout(() => {
-                try { tg.close(); } catch (e) {}
-            }, 100);
-        }
-        
-        function shareApp() {
-            triggerHaptic('light');
-            const text = encodeURIComponent(`📊 Я слежу за своим здоровьем и магнитными бурями через удобный трекер! Бот: @magni_buriBot | Канал: @weather_storm_space`);
-            const shareUrl = `https://t.me/share/url?url=https://t.me/weather_storm_space&text=${text}`;
-            tg.openTelegramLink(shareUrl);
-        }
-
-        function formatTime(d = new Date()) {
-            const pad = n => n < 10 ? '0' + n : n;
-            return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-
-        function updateSyncBadge(text, isFresh = true) {
-            document.getElementById('sync-status').innerText = text;
-            document.getElementById('sync-time').innerText = formatTime();
-        }
-
-        function fmtTemp(v) {
-            const r = Math.round(v);
-            return r > 0 ? '+' + r + '°' : r + '°';
-        }
-
-        function renderParts(parts) {
-            const box = document.getElementById('w-parts');
-            if (!box) return;
-            if (!parts || !parts.length) { box.style.display = 'none'; return; }
-            box.innerHTML = '';
-            parts.forEach(p => {
-                let t = '—';
-                if (p.a !== null && p.a !== undefined) {
-                    t = (p.a === p.b) ? fmtTemp(p.a) : fmtTemp(p.a) + '…' + fmtTemp(p.b);
-                }
-                let r = '';
-                if (p.r >= 0.1) r = '💧 ' + (p.p !== null && p.p !== undefined ? p.p + '%' : p.r.toFixed(1) + ' мм');
-                else if (p.p !== null && p.p !== undefined && p.p >= 30) r = '💧 ' + p.p + '%';
-                const el = document.createElement('div');
-                el.className = 'part';
-                [['part-l', p.l], ['part-z', p.z ? 'завтра' : ''], ['part-i', p.i || ''], ['part-t', t], ['part-r', r]]
-                    .forEach(([cls, txt]) => {
-                        const d = document.createElement('div');
-                        d.className = cls;
-                        d.textContent = txt;
-                        el.appendChild(d);
-                    });
-                box.appendChild(el);
-            });
-            box.style.display = 'grid';
-        }
-
-        // Части суток из почасового прогноза Open-Meteo (время уже местное: timezone=auto)
-        function partsFromOpenMeteo(wData) {
+    function partsFromOpenMeteo(wData) {
             const h = wData && wData.hourly;
             const nowStr = wData && wData.current && wData.current.time;
             if (!h || !h.time || !nowStr) return null;
@@ -826,7 +614,7 @@
 
         function renderOutlook(o) {
             const card = document.getElementById('outlook-card');
-            if (!o || !o.s || !o.k || !o.k.length) { card.style.display = 'none'; return; }
+            if (!o || !o.s || !o.k || !o.k.length) { card.hidden = true; return; }
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const todayIso = isoLocal(today);
             const byDate = {};
@@ -836,7 +624,7 @@
                 byDate[isoLocal(d)] = k;
             });
             const future = Object.keys(byDate).filter(d => d >= todayIso).sort();
-            if (!future.length) { card.style.display = 'none'; return; }
+            if (!future.length) { card.hidden = true; return; }
 
             const grid = document.getElementById('cal-grid');
             grid.innerHTML = '';
@@ -882,214 +670,360 @@
             document.getElementById('cal-note').textContent =
                 'Долгосрочный прогноз NOAA' + (o.i ? ' от ' + fmtD(o.i) : '') +
                 '. Строится по 27-дневному обороту Солнца и уточняется ближе к дате.';
-            card.style.display = 'block';
+            card.hidden = false;
         }
 
-        function renderWeather(w) {
-            if (!w) return;
-            document.getElementById('weather-card').style.display = 'block';
-            document.getElementById('w-city').innerText = '📍 ' + (w.city || 'Ваш город');
-            document.getElementById('w-icon').innerText = w.icon || '⛅';
-            const t = Math.round(Number(w.t) || 0);
-            document.getElementById('w-temp').innerText = t > 0 ? '+' + t + '°' : t + '°';
-            document.getElementById('w-desc').innerText = w.desc || '';
-            
-            const pVal = Number(w.p);
-            let pressHtml = (!isNaN(pVal) && pVal > 0) ? `${Math.round(pVal)} мм рт. ст.` : '';
-            if (w.is_saw) {
-                pressHtml += ' <span class="press-badge saw">⚠️ Барическая пила</span>';
-            } else if (pressHtml) {
-                pressHtml += ' <span class="press-badge stable">✅ Стабильно</span>';
-            }
-            document.getElementById('w-press').innerHTML = pressHtml;
-            renderParts(w.parts);
-        }
+    // ---------- погода ----------
+    function skyOf(w) {
+        const h = new Date().getHours();
+        const d = (w.desc || '').toLowerCase();
+        if (/дожд|ливен|морос|гроз/.test(d)) return 'rain';
+        if (/снег/.test(d)) return 'snow';
+        if (h < 6 || h >= 20) return 'night';
+        if (/ясно/.test(d) || w.icon === '☀️') return 'clear';
+        return 'cloudy';
+    }
+    function pressTrend(w) {
+        const s = (w.p_status || '').toLowerCase();
+        if (w.is_saw || s.includes('пила')) return 'скачет';
+        if (s.includes('падени')) return 'падает';
+        if (s.includes('рост')) return 'растёт';
+        return 'стабильно';
+    }
+    function renderWeather(w) {
+        if (!w) return;
+        setText('w-city', (w.city || 'Ваш город').split(',')[0]);
+        document.getElementById('wx').dataset.sky = skyOf(w);
+        if (w.t !== undefined && w.t !== null) setText('w-temp', fmtTemp(Number(w.t)));
+        setText('w-icon', w.icon || '⛅');
+        setText('w-desc', w.desc || '');
+        setText('w-feels', (w.f !== undefined && w.f !== null) ? 'ощущается как ' + fmtTemp(w.f) : '');
+        setText('w-wind', (w.ws !== undefined && w.ws !== null) ? 'ветер ' + (w.wd && w.wd !== '—' ? w.wd + ', ' : '') + w.ws + ' м/с' : '');
+        const p = Number(w.p);
+        setText('w-press', (!isNaN(p) && p > 0) ? Math.round(p) + ' мм, ' + pressTrend(w) : '—');
+        renderParts(w.parts);
+    }
+    function renderParts(parts) {
+        const box = document.getElementById('w-parts');
+        if (!parts || !parts.length) { box.hidden = true; return; }
+        box.innerHTML = '';
+        parts.forEach(p => {
+            let t = '—';
+            if (p.a !== null && p.a !== undefined) t = (p.a === p.b) ? fmtTemp(p.a) : fmtTemp(p.a) + '…' + fmtTemp(p.b);
+            let r = p.z ? 'завтра' : '';
+            const hasPop = p.p !== null && p.p !== undefined;
+            if (p.r >= 0.1 || (hasPop && p.p >= 30)) r = '💧 ' + (hasPop ? p.p + '%' : p.r.toFixed(1) + ' мм');
+            const el = document.createElement('div'); el.className = 'wx-part';
+            const l = document.createElement('span'); l.textContent = p.l;
+            const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = p.i || '';
+            const b = document.createElement('b'); b.textContent = t;
+            const rn = document.createElement('span'); rn.className = 'rain'; rn.textContent = r;
+            el.append(l, ic, b, rn); box.appendChild(el);
+        });
+        box.hidden = false;
+    }
+    function renderStorm(kp) {
+        if (kp === null || kp === undefined) return;
+        const val = Number(typeof kp === 'object' ? kp.val : kp);
+        if (isNaN(val)) return;
+        document.getElementById('kp-dot').style.background = kpColor(val);
+        setText('kp-text', 'Kp ' + Math.round(val) + ', ' + kpShort(val));
+    }
 
-        function kpDescription(kp) {
-            const k = Math.round(Number(kp) || 0);
-            if (k < 4) return '🟢 Спокойное поле (бури нет)';
-            if (k === 4) return '🟡 Небольшие возмущения';
-            if (k === 5) return '🟠 G1 — слабая буря';
-            if (k === 6) return '🟠 G2 — умеренная буря';
-            if (k === 7) return '🔴 G3 — сильная буря';
-            if (k === 8) return '🔴 G4 — жёсткая буря';
-            return '🟣 G5 — экстремальная буря';
-        }
+    // ---------- отметка ----------
+    let current = null;
+    const tagBox = document.getElementById('tags');
+    TAGS.forEach(([code, name]) => {
+        const b = document.createElement('button');
+        b.className = 'tag'; b.type = 'button'; b.dataset.code = code; b.textContent = name; b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', () => { triggerHaptic('light'); b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); });
+        tagBox.appendChild(b);
+    });
+    document.querySelectorAll('.mark').forEach(b => b.addEventListener('click', () => {
+        triggerHaptic('light');
+        current = b.dataset.v;
+        document.querySelectorAll('.mark').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        setText('follow-q', current === 'good' ? 'Отлично! Можно добавить давление или заметку, или сразу сохранить.' : 'Что беспокоит? Можно выбрать несколько.');
+        tagBox.hidden = current === 'good';
+        document.getElementById('follow').hidden = false;
+    }));
+    document.getElementById('add-bp').addEventListener('click', () => {
+        document.getElementById('bp-in-1').hidden = false;
+        document.getElementById('add-bp').hidden = true;
+        document.getElementById('bp-s1').focus();
+    });
 
-        function wmoWeather(code) {
-            if (code === 0) return { icon: '☀️', desc: 'Ясно' };
-            if (code === 1 || code === 2) return { icon: '🌤', desc: 'Переменная облачность' };
-            if (code === 3) return { icon: '☁️', desc: 'Пасмурно' };
-            if (code === 45 || code === 48) return { icon: '🌫', desc: 'Туман' };
-            if (code >= 51 && code <= 55) return { icon: '🌦', desc: 'Морось' };
-            if (code >= 61 && code <= 65) return { icon: '🌧', desc: 'Дождь' };
-            if (code >= 71 && code <= 77) return { icon: '❄️', desc: 'Снег' };
-            if (code >= 80 && code <= 82) return { icon: '🌧', desc: 'Ливень' };
-            if (code >= 85 && code <= 86) return { icon: '🌨', desc: 'Снегопад' };
-            if (code >= 95) return { icon: '⛈', desc: 'Гроза' };
-            return { icon: '⛅', desc: 'Облачно' };
-        }
+    // Проверка показаний тонометра — те же границы, что и в боте
+    function readBp(si, di, pi) {
+        const sv = document.getElementById(si).value.trim(), dv = document.getElementById(di).value.trim(), pv = document.getElementById(pi).value.trim();
+        if (!sv && !dv && !pv) return { empty: true };
+        const s = parseInt(sv, 10), d = parseInt(dv, 10), p = pv ? parseInt(pv, 10) : null;
+        if (!(s >= 60 && s <= 260) || !(d >= 30 && d <= 160) || s <= d) return { error: 'Проверьте давление: верхнее от 60 до 260, нижнее от 30 до 160, и верхнее больше нижнего.' };
+        if (p !== null && !(p >= 30 && p <= 220)) return { error: 'Пульс должен быть от 30 до 220 или оставьте поле пустым.' };
+        return { s, d, p };
+    }
+    function showErr(id, text) { const e = document.getElementById(id); e.textContent = text || ''; e.hidden = !text; if (text) triggerHaptic('error'); }
 
-        function renderStorm(kp) {
-            if (!kp && kp !== 0) return;
-            document.getElementById('storm-card').style.display = 'block';
-            const val = typeof kp === 'object' ? kp.val : kp;
-            const text = typeof kp === 'object' ? (kp.text || kpDescription(val)) : kpDescription(val);
-            
-            const elVal = document.getElementById('kp-val');
-            elVal.innerText = 'Kp ' + Number(val).toFixed(1);
-            document.getElementById('kp-desc').innerText = text;
-            if (val >= 5) elVal.className = 'kp-value kp-danger';
-            else if (val >= 4) elVal.className = 'kp-value kp-warn';
-            else elVal.className = 'kp-value kp-good';
+    document.getElementById('save').addEventListener('click', () => {
+        if (!current) return;
+        let arg = 'log_' + current;
+        if (current !== 'good') {
+            const codes = [...tagBox.querySelectorAll('.tag[aria-pressed="true"]')].map(t => t.dataset.code).join('');
+            if (codes) arg += '_' + codes;
         }
+        const bp = readBp('bp-s1', 'bp-d1', 'bp-p1');
+        if (bp.error) return showErr('err-1', bp.error);
+        if (!bp.empty) arg += '_bp' + bp.s + '-' + bp.d + (bp.p ? '-' + bp.p : '');
+        if (document.getElementById('want-note').checked) arg += '_n';
+        showErr('err-1', '');
+        openBot(arg);
+    });
+    document.getElementById('bp-open').addEventListener('click', () => {
+        document.getElementById('bp-form').hidden = false;
+        document.getElementById('bp-open').hidden = true;
+        document.getElementById('bp-s2').focus();
+    });
+    document.getElementById('bp-save').addEventListener('click', () => {
+        const bp = readBp('bp-s2', 'bp-d2', 'bp-p2');
+        if (bp.empty) return showErr('err-2', 'Введите верхнее и нижнее давление.');
+        if (bp.error) return showErr('err-2', bp.error);
+        showErr('err-2', '');
+        openBot('bp_' + bp.s + '-' + bp.d + (bp.p ? '-' + bp.p : ''));
+    });
 
-        function renderChart(entries) {
-            if (!entries || entries.length === 0) return;
-            const ctx = document.getElementById('diaryChart').getContext('2d');
-            const colors = entries.map(d => {
-                if (d.s === 'good') return '#43e97b';
-                if (d.s === 'normal') return '#f6d365';
-                return '#ff0844';
+    function renderToday(td) {
+        if (!td || !td.s) return;
+        const box = document.getElementById('today-done');
+        box.innerHTML = '';
+        const b = document.createElement('b');
+        b.textContent = 'Сегодня в ' + td.t + ' вы отметили «' + S_WORD[td.s] + '»' + (td.k !== null && td.k !== undefined ? ' при Kp ' + td.k : '');
+        const st = payloadData && payloadData.st;
+        box.append(b, document.createTextNode((st >= 2 ? 'Серия: ' + st + ' дн. подряд. ' : '') + 'Можно изменить запись или добавить давление.'));
+        box.hidden = false;
+        setText('ask', 'Сегодня вы отметились');
+    }
+
+    // ---------- «Вы и небо» ----------
+    const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    function renderSky(h) {
+        const sky = document.getElementById('sky'), info = document.getElementById('skyinfo');
+        sky.innerHTML = '';
+        if (!h || !h.length) { info.textContent = 'Здесь появятся ваши отметки рядом с магнитной активностью.'; return; }
+        const dayEls = [];
+        const pick = i => {
+            const x = h[i];
+            dayEls.forEach((e, j) => e.classList.toggle('sel', j === i));
+            let s = (+x[0].slice(0, 2)) + ' ' + MONTHS_GEN[+x[0].slice(3, 5) - 1] + ': ';
+            s += x[1] === null ? 'Kp нет данных.' : 'Kp ' + x[1] + ', ' + kpShort(x[1]) + '.';
+            if (x[2]) s += ' Резкий перепад атмосферного давления.';
+            if (x[3]) {
+                s += ' Вы отметили «' + S_WORD[x[3]] + '»';
+                const tags = (x[4] || '').split('').map(c => TAG_NAME[c]).filter(Boolean);
+                s += tags.length ? ': ' + tags.join(', ').toLowerCase() + '.' : '.';
+            } else s += ' Отметки не было.';
+            if (x[5]) s += ' Давление ' + x[5] + '.';
+            info.textContent = s;
+        };
+        [['Kp', 'kp'], ['Атм. давл.', 'p'], ['Вы', 's'], ['', 'd']].forEach(([label, key]) => {
+            const l = document.createElement('div'); l.className = 'lane'; l.textContent = label; sky.appendChild(l);
+            h.forEach((x, i) => {
+                const el = document.createElement('div');
+                if (key === 'kp') {
+                    el.className = 'kpbar' + (x[1] === null ? ' empty' : '') + (x[1] >= 5 ? ' storm' : '');
+                    const bar = document.createElement('span');
+                    if (x[1] !== null) { bar.style.height = Math.max(8, x[1] / 9 * 100) + '%'; bar.style.background = kpColor(x[1]); }
+                    el.appendChild(bar);
+                } else if (key === 'p') {
+                    el.className = 'cell';
+                    if (x[2]) { const t = document.createElement('i'); t.className = 'press'; el.appendChild(t); }
+                } else if (key === 's') {
+                    el.className = 'cell';
+                    const c = document.createElement('i'); c.className = 'you' + (x[3] ? '' : ' none');
+                    if (x[3]) c.style.background = S_COLOR[x[3]];
+                    el.appendChild(c);
+                } else {
+                    el.className = 'day'; el.textContent = +x[0].slice(0, 2); dayEls.push(el);
+                }
+                el.addEventListener('click', () => { triggerHaptic('light'); pick(i); });
+                sky.appendChild(el);
             });
+        });
+        let start = h.length - 1;
+        for (let i = h.length - 1; i >= 0; i--) if (h[i][1] >= 5 && h[i][3]) { start = i; break; }
+        pick(start);
+    }
 
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: entries.map(d => d.t),
-                    datasets: [{
-                        label: 'Kp',
-                        data: entries.map(d => d.k),
-                        borderColor: 'rgba(255, 255, 255, 0.25)',
-                        pointBackgroundColor: colors,
-                        pointBorderColor: '#ffffff',
-                        pointRadius: 6,
-                        borderWidth: 2,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { min: 0, max: 9, grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.7)' } },
-                        x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)', maxRotation: 45 } }
-                    }
-                }
-            });
+    // ---------- вывод и симптомы ----------
+    function renderInsight(an, tot) {
+        const el = document.getElementById('insight');
+        const need = 20;
+        setText('meter-t', tot >= need ? 'Записей: ' + tot + '. Выводу уже можно доверять.' : 'Записей: ' + tot + ' из ' + need + '. После ' + need + ' вывод станет надёжнее.');
+        document.getElementById('meter-i').style.width = Math.min(100, tot / need * 100) + '%';
+        if (!an || an[0] < 2 || an[2] < 2) {
+            el.textContent = tot ? 'Пока мало данных: нужны отметки и в дни бурь, и в спокойные дни. Отмечайтесь каждый день — бури бывают несколько раз в месяц.' : 'Отметьте самочувствие — и здесь появится, как на вас влияют бури.';
+            return;
         }
+        const [sn, su, cn, cu] = an;
+        const rs = su / sn, rc = cu / cn;
+        const verdict = rs > rc + 0.25 ? 'Похоже, бури на вас действуют.' : rs > rc ? 'Возможно, есть небольшая связь.' : 'Связи с бурями пока не видно.';
+        el.innerHTML = '';
+        const s1 = document.createElement('strong'); s1.textContent = su + ' из ' + sn;
+        const s2 = document.createElement('strong'); s2.textContent = cu + ' из ' + cn;
+        el.append('В дни бурь и возмущений (Kp 4+) вам было нехорошо ', s1, ' раз. В спокойные дни — ', s2, '. ' + verdict);
+    }
+    function renderSymptoms(sy, an) {
+        const keys = Object.keys(sy || {});
+        if (!keys.length || !an) return;
+        const box = document.getElementById('sym'); box.innerHTML = '';
+        const sn = an[0], cn = an[2];
+        keys.sort((a, b) => (sy[b][0] + sy[b][1]) - (sy[a][0] + sy[a][1])).slice(0, 5).forEach(code => {
+            const a = sy[code][0], b = sy[code][1];
+            const row = document.createElement('div'); row.className = 'sym-row';
+            const lbl = document.createElement('div'); lbl.textContent = TAG_NAME[code] || code;
+            const pair = document.createElement('div'); pair.className = 'pair';
+            const ia = document.createElement('i'); ia.style.background = 'var(--kp5)'; ia.style.width = Math.max(3, sn ? a / sn * 100 : 0) + '%';
+            const ib = document.createElement('i'); ib.style.background = 'var(--kp0)'; ib.style.width = Math.max(3, cn ? b / cn * 100 : 0) + '%';
+            pair.title = 'В бури: ' + a + ' из ' + sn + ', в спокойные дни: ' + b + ' из ' + cn;
+            pair.append(ia, ib); row.append(lbl, pair); box.appendChild(row);
+        });
+        document.getElementById('sym-sec').hidden = false;
+    }
 
-        // Live API Fetch for real-time online refresh
-        async function fetchLiveUpdates() {
-            let updated = false;
-            // 1. NOAA SWPC Planetary K-index Forecast (CORS supported)
-            try {
-                const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json?_t=" + Date.now());
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 1) {
-                    const now = new Date();
-                    const rows = Array.isArray(data[0]) ?
-                        data.slice(1).map(r => ({ time_tag: r[0], kp: parseFloat(r[1]) })) :
-                        data;
-                    let curRow = null;
-                    for (const r of rows) {
-                        const t = new Date(String(r.time_tag).replace(' ', 'T') + (String(r.time_tag).includes('Z') ? '' : 'Z'));
-                        if (t <= now) {
-                            curRow = r;
-                        } else {
-                            break;
-                        }
-                    }
-                    if (!curRow && rows.length > 0) curRow = rows[0];
-                    if (curRow) {
-                        const kpVal = parseFloat(curRow.kp !== undefined ? curRow.kp : curRow.Kp);
-                        if (!isNaN(kpVal)) {
-                            renderStorm(kpVal);
-                            if (payloadData) {
-                                if (!payloadData.kp) payloadData.kp = {};
-                                payloadData.kp.val = kpVal;
-                                payloadData.kp.text = kpDescription(kpVal);
-                            }
-                            updated = true;
-                        }
-                    }
+    // ---------- давление (тонометр) ----------
+    function bpLevel(s, d) {
+        if (s >= 180 || d >= 110) return '⚠️ Очень высокое давление. Если плохо — вызовите врача или скорую (103).';
+        if (s >= 140 || d >= 90) return 'Выше нормы (от 140/90).';
+        if (s < 90 || d < 60) return 'Ниже обычного (меньше 90/60).';
+        return 'В пределах обычного.';
+    }
+    function renderBp(bp) {
+        if (!bp || !bp.l) return;
+        document.getElementById('bp-has').hidden = false;
+        document.getElementById('bp-empty').hidden = true;
+        setText('bp-open', 'Записать ещё');
+        const s = bp.l[0], d = bp.l[1], p = bp.l[2], when = bp.l[3];
+        setText('bp-num', s + '/' + d);
+        setText('bp-meta', (p ? 'пульс ' + p + ', ' : '') + when);
+        setText('bp-level', bpLevel(s, d));
+        const chart = document.getElementById('bp-chart'); chart.innerHTML = '';
+        const rows = bp.h || [];
+        const lo = Math.min(60, ...rows.map(r => r[2])) - 5, hi = Math.max(150, ...rows.map(r => r[1])) + 5;
+        const y = v => (v - lo) / (hi - lo) * 100;
+        [140, 90].forEach(v => {
+            const ln = document.createElement('div'); ln.className = 'bp-line'; ln.style.bottom = y(v) + '%';
+            const em = document.createElement('em'); em.textContent = v; ln.appendChild(em); chart.appendChild(ln);
+        });
+        rows.forEach((r, i) => {
+            const col = document.createElement('div'); col.className = 'bp-col ' + (r[3] !== null && r[3] >= 4 ? 'storm' : 'calm');
+            const bar = document.createElement('span'); bar.style.bottom = y(r[2]) + '%'; bar.style.height = (y(r[1]) - y(r[2])) + '%';
+            bar.title = r[0] + ': ' + r[1] + '/' + r[2] + (r[3] !== null ? ', Kp ' + r[3] : '');
+            col.appendChild(bar);
+            if (i === 0 || i === rows.length - 1 || (i % 4 === 0 && rows.length - 1 - i >= 3)) { const t = document.createElement('i'); t.textContent = r[0].slice(0, 5); col.appendChild(t); }
+            chart.appendChild(col);
+        });
+        if (bp.s && bp.c) setText('bp-cmp', 'В дни бурь в среднем ' + bp.s[0] + '/' + bp.s[1] + ' (' + bp.s[2] + ' изм.), в спокойные — ' + bp.c[0] + '/' + bp.c[1] + ' (' + bp.c[2] + ' изм.). Оранжевым — измерения при Kp 4+.');
+        else setText('bp-cmp', 'Оранжевым — измерения в дни бурь. Сравнение появится, когда будут записи и в бури, и в спокойные дни.');
+    }
+
+    // ---------- впереди ----------
+    function renderAhead(o, ts) {
+        const box = document.getElementById('ahead'); box.innerHTML = '';
+        const note = t => { const p = document.createElement('p'); p.className = 'empty-note'; p.textContent = t; box.appendChild(p); };
+        if (!o || !o.s || !o.k) return note('Прогноз на ближайшие дни пока не загрузился.');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const start = dayFromIso(o.s);
+        const list = [];
+        o.k.forEach((k, i) => {
+            const d = new Date(start); d.setDate(start.getDate() + i);
+            const diff = Math.round((d - today) / 86400000);
+            if (diff >= 0 && diff <= 10 && k >= 4) list.push({ d, k, diff });
+        });
+        if (!list.length) return note('В ближайшие 10 дней бурь по прогнозу NOAA не ожидается.');
+        list.slice(0, 3).forEach(x => {
+            const row = document.createElement('div'); row.className = 'ahead-day';
+            const n = document.createElement('div'); n.className = 'kpbig'; n.style.background = kpColor(x.k); n.textContent = x.k;
+            const p = document.createElement('p');
+            const b = document.createElement('b');
+            b.textContent = (x.diff === 0 ? 'Сегодня' : x.diff === 1 ? 'Завтра' : dayTitle(x.d)) + ' — ' + kpWord(x.k);
+            const tip = x.k >= 5
+                ? (ts && TAG_NAME[ts] ? 'В прошлые бури у вас чаще всего было: ' + TAG_NAME[ts].toLowerCase() + '. Накануне лучше выспаться и держать привычные лекарства под рукой.' : 'Накануне лучше выспаться и не планировать тяжёлых дел.')
+                : 'Обычно влияние слабое, но метеочувствительным стоит поберечься.';
+            p.append(b, tip); row.append(n, p); box.appendChild(row);
+        });
+    }
+    function renderSwitches(rm, ev) {
+        const eve = document.getElementById('sw-eve'), rem = document.getElementById('sw-rem');
+        eve.setAttribute('aria-checked', ev === 0 ? 'false' : 'true');
+        const on = rm !== null && rm !== undefined;
+        const hour = on ? rm : 20;
+        rem.setAttribute('aria-checked', on ? 'true' : 'false');
+        setText('rem-label', 'Напоминать отметиться в ' + String(hour).padStart(2, '0') + ':00');
+        eve.onclick = () => openBot(eve.getAttribute('aria-checked') === 'true' ? 'eve_off' : 'eve_on');
+        rem.onclick = () => openBot(rem.getAttribute('aria-checked') === 'true' ? 'rem_off' : 'rem_' + hour);
+    }
+
+    // ---------- онлайн-обновление ----------
+    async function fetchLiveUpdates() {
+        let updated = false;
+        try {
+            const res = await fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json?_t=" + Date.now());
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 1) {
+                const now = new Date();
+                const rows = Array.isArray(data[0]) ? data.slice(1).map(r => ({ time_tag: r[0], kp: parseFloat(r[1]) })) : data;
+                let curRow = null;
+                for (const r of rows) {
+                    const t = new Date(String(r.time_tag).replace(' ', 'T') + (String(r.time_tag).includes('Z') ? '' : 'Z'));
+                    if (t <= now) curRow = r; else break;
                 }
-            } catch (err) {
-                console.warn("NOAA fetch error:", err);
-            }
-
-            // 1b. 27-дневный прогноз NOAA для календаря (если браузер пропустит запрос)
-            try {
-                const res = await fetch("https://services.swpc.noaa.gov/text/27-day-outlook.txt?_t=" + Date.now());
-                if (res.ok) {
-                    const o = parseOutlookText(await res.text());
-                    if (o) {
-                        if (!payloadData) payloadData = {};
-                        payloadData.o = o;
-                        renderOutlook(o);
-                    }
-                }
-            } catch (err) {
-                console.warn("Outlook fetch error:", err);
-            }
-
-            // 2. Open-Meteo Weather (use pressure_msl for sea-level reduced atmospheric pressure)
-            const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
-            const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
-            try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,weather_code&hourly=temperature_2m,weather_code,precipitation,precipitation_probability&forecast_days=2&timezone=auto&_t=${Date.now()}`;
-                const res = await fetch(url);
-                const wData = await res.json();
-                if (wData && wData.current) {
-                    const cur = wData.current;
-                    const mmhgPress = Math.round((cur.pressure_msl || 1013) * 0.750062);
+                if (!curRow && rows.length) curRow = rows[0];
+                const kpVal = curRow ? parseFloat(curRow.kp !== undefined ? curRow.kp : curRow.Kp) : NaN;
+                if (!isNaN(kpVal)) {
+                    renderStorm(kpVal);
                     if (!payloadData) payloadData = {};
-                    if (!payloadData.w) payloadData.w = { city: 'Москва', lat: lat, lon: lon };
-                    payloadData.w.t = cur.temperature_2m;
-                    payloadData.w.p = mmhgPress;
-                    if (cur.weather_code !== undefined) {
-                        const wm = wmoWeather(cur.weather_code);
-                        payloadData.w.icon = wm.icon;
-                        payloadData.w.desc = wm.desc;
-                    }
-                    try {
-                        const liveParts = partsFromOpenMeteo(wData);
-                        if (liveParts && liveParts.length) payloadData.w.parts = liveParts;
-                    } catch (e) {
-                        console.warn("Day parts error:", e);
-                    }
-                    renderWeather(payloadData.w);
+                    payloadData.kp = { val: kpVal, text: kpDescription(kpVal) };
                     updated = true;
                 }
-            } catch (err) {
-                console.warn("Weather fetch error:", err);
             }
-            return updated;
-        }
-
-        async function manualRefresh() {
-            triggerHaptic('light');
-            const icon = document.getElementById('refresh-icon');
-            icon.classList.add('spin');
-            updateSyncBadge("Обновление...");
-            
-            try {
-                await fetchLiveUpdates();
-                triggerHaptic('success');
-                updateSyncBadge("Обновлено онлайн ✨");
-            } catch (e) {
-                triggerHaptic('error');
-                updateSyncBadge("Сбой сети");
-            } finally {
-                setTimeout(() => {
-                    icon.classList.remove('spin');
-                }, 600);
+        } catch (err) { console.warn("NOAA fetch error:", err); }
+        try {
+            const res = await fetch("https://services.swpc.noaa.gov/text/27-day-outlook.txt?_t=" + Date.now());
+            if (res.ok) {
+                const o = parseOutlookText(await res.text());
+                if (o) { if (!payloadData) payloadData = {}; payloadData.o = o; renderOutlook(o); renderAhead(o, payloadData.ts); }
             }
-        }
+        } catch (err) { console.warn("Outlook fetch error:", err); }
+        const lat = (payloadData && payloadData.w && payloadData.w.lat) || 55.7558;
+        const lon = (payloadData && payloadData.w && payloadData.w.lon) || 37.6173;
+        try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,pressure_msl,weather_code,wind_speed_10m&wind_speed_unit=ms&hourly=temperature_2m,weather_code,precipitation,precipitation_probability&forecast_days=2&timezone=auto&_t=${Date.now()}`;
+            const res = await fetch(url);
+            const wData = await res.json();
+            if (wData && wData.current) {
+                const cur = wData.current;
+                if (!payloadData) payloadData = {};
+                if (!payloadData.w) payloadData.w = { city: 'Москва', lat, lon };
+                const w = payloadData.w;
+                w.t = cur.temperature_2m;
+                w.p = Math.round((cur.pressure_msl || 1013) * 0.750062);
+                if (cur.apparent_temperature !== undefined) w.f = Math.round(cur.apparent_temperature);
+                if (cur.wind_speed_10m !== undefined) w.ws = Math.round(cur.wind_speed_10m);
+                if (cur.weather_code !== undefined) { const wm = wmoWeather(cur.weather_code); w.icon = wm.icon; w.desc = wm.desc; }
+                try { const lp = partsFromOpenMeteo(wData); if (lp && lp.length) w.parts = lp; } catch (e) {}
+                renderWeather(w);
+                updated = true;
+            }
+        } catch (err) { console.warn("Weather fetch error:", err); }
+        return updated;
+    }
+    async function manualRefresh() {
+        triggerHaptic('light');
+        const btn = document.getElementById('btn-refresh');
+        btn.classList.add('busy'); setText('sync-status', 'Обновляю…');
+        try { await fetchLiveUpdates(); setText('sync-status', 'Обновлено в ' + formatTime()); triggerHaptic('success'); }
+        catch (e) { setText('sync-status', 'Нет сети'); }
+        finally { btn.classList.remove('busy'); }
+    }
 
         // Story Card Generation
         function generateStoryCanvas() {
@@ -1219,7 +1153,7 @@
             modal.classList.add('active');
             
             if (tg && typeof tg.shareToStory === 'function') {
-                document.getElementById('btn-tg-story').style.display = 'block';
+                const tgBtn = document.getElementById('btn-tg-story'); if (tgBtn) tgBtn.style.display = 'block';
             }
         }
 
@@ -1293,64 +1227,26 @@
             }, 100);
         }
 
-        // Initial Data Load
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const rawData = urlParams.get('d');
-            
-            if (rawData) {
-                payloadData = JSON.parse(rawData);
-                
-                if (payloadData.w) {
-                    renderWeather(payloadData.w);
-                } else {
-                    manualRefresh();
-                }
-
-                if (payloadData.o) {
-                    try { renderOutlook(payloadData.o); } catch (e) { console.warn("Outlook render error:", e); }
-                }
-                if (payloadData.kp) {
-                    renderStorm(payloadData.kp);
-                } else {
-                    manualRefresh();
-                }
-
-                if (payloadData.a) {
-                    const elA = document.getElementById('analytics-text');
-                    elA.innerText = payloadData.a;
-                    elA.style.display = 'block';
-                }
-                
-                if (payloadData.tip) {
-                    const elTip = document.getElementById('tip-text');
-                    elTip.innerText = "💡 " + payloadData.tip;
-                    elTip.style.display = 'block';
-                }
-
-                if (payloadData.d && payloadData.d.length > 0) {
-                    renderChart(payloadData.d);
-                }
-
-                if (payloadData.cd && payloadData.cd.active) {
-                    updateCooldownState();
-                }
-
-                updateSyncBadge("Актуально");
-            } else {
-                // If opened without payload, try live fetch
-                manualRefresh();
-            }
-        } catch (e) {
-            console.error("Initialization error:", e);
-            manualRefresh();
-        }
-
-        // Real-time cooldown countdown ticker every 5 seconds
-        setInterval(updateCooldownState, 5000);
-
-        // Auto background refresh every 5 minutes if tab is kept open
-        setInterval(fetchLiveUpdates, 5 * 60 * 1000);
-    </script>
+    // ---------- запуск ----------
+    try {
+        const raw = new URLSearchParams(window.location.search).get('d');
+        payloadData = raw ? JSON.parse(raw) : {};
+    } catch (e) { console.error("payload error", e); payloadData = {}; }
+    try {
+        const P = payloadData;
+        if (P.w) renderWeather(P.w);
+        if (P.kp) renderStorm(P.kp);
+        renderToday(P.td);
+        renderSky(P.h);
+        renderInsight(P.an, P.tot || 0);
+        renderSymptoms(P.sy, P.an);
+        renderBp(P.bp);
+        renderAhead(P.o, P.ts);
+        if (P.o) renderOutlook(P.o);
+        renderSwitches(P.rm, P.ev);
+    } catch (e) { console.error("render error", e); }
+    fetchLiveUpdates();
+    setInterval(fetchLiveUpdates, 5 * 60 * 1000);
+</script>
 </body>
 </html>
