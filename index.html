@@ -11,6 +11,7 @@
     <style>
         /* Экран дневника: погодная плашка сверху, ниже секции, разделённые линиями. Цвета — «полярная ночь» и сияние. */
         :root {
+            --page: #eef1f8;
             --bg: #ffffff;
             --well: #f4f6fb;
             --ink: #1c2140;
@@ -32,7 +33,7 @@
             color-scheme: light;
         }
         :root[data-theme="dark"] {
-            --bg: #161a35; --well: #222750; --ink: #eceffa; --muted: #a3a9cb; --line: #2c3263;
+            --page: #0f1229; --bg: #1a1e3d; --well: #252a55; --ink: #eceffa; --muted: #a3a9cb; --line: #2c3263;
             --aurora: #5ed6bc; --aurora-wash: rgba(94, 214, 188, 0.13); --on-aurora: #10132a;
             --good: #5ccfa8; --normal: #e8b84a; --bad: #f0708f;
             --kp0: #3f8f7c; --kp4: #d9a63a; --kp5: #e57a4a; --kp7: #e8577c;
@@ -41,14 +42,14 @@
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         html, body { margin: 0; }
-        body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+        body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
         button, input { font: inherit; color: inherit; }
         :focus-visible { outline: 2px solid var(--aurora); outline-offset: 2px; }
-        .app { max-width: 560px; margin: 0 auto; padding-bottom: 24px; }
+        .app { max-width: 560px; margin: 0 auto; padding: 12px 12px 24px; display: grid; gap: 12px; }
         [hidden] { display: none !important; }
 
         /* ---------- погода ---------- */
-        .wx-wrap { padding: 12px 12px 4px; }
+        .wx-wrap { padding: 0; }
         .wx { --wx-top: #3f5f9f; --wx-bottom: #8aa4d4; background: linear-gradient(170deg, var(--wx-top), var(--wx-bottom));
               color: #ffffff; border-radius: 26px; padding: 16px 18px 14px; display: grid; gap: 14px; }
         .wx[data-sky="clear"] { --wx-top: #2f74c8; --wx-bottom: #79b4ea; }
@@ -76,8 +77,15 @@
         .wx-part .rain { min-height: 16px; }
 
         /* ---------- секции ---------- */
-        .sec { padding: 20px 16px; display: grid; gap: 12px; border-bottom: 1px solid var(--line); }
-        .sec h3 { margin: 0; font-size: 16.5px; font-weight: 700; }
+        .sec { padding: 16px 16px 18px; display: grid; gap: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 22px; }
+        .sec-head { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+        .sec-ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--ic, var(--aurora-wash)); }
+        .sec h3 { margin: 0; font-size: 16.5px; font-weight: 700; line-height: 1.25; }
+        .sec-sub { margin: 1px 0 0; font-size: 13px; color: var(--muted); line-height: 1.35; }
+        .cd { background: color-mix(in srgb, var(--normal) 14%, transparent); border-radius: 14px; padding: 11px 14px; font-size: 14px; }
+        .cd b { display: block; }
+        .marks.locked .mark { opacity: .45; cursor: not-allowed; }
+        .primary:disabled, .secondary:disabled { opacity: .55; cursor: default; }
         .sub { margin: -8px 0 0; font-size: 13px; color: var(--muted); }
         .ask { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.2; margin: 0; }
         .marks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -330,8 +338,10 @@
 
     <!-- Отметка -->
     <section class="sec" id="checkin" aria-label="Отметка самочувствия">
+        <div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--good) 18%, transparent)" aria-hidden="true">✍️</span><div><h3>Отметка самочувствия</h3><p class="sec-sub">Раз в час: как вы себя чувствуете, симптомы, давление</p></div></div>
         <p class="ask" id="ask">Как вы сегодня?</p>
         <div class="done" id="today-done" hidden></div>
+        <div class="cd" id="cd-banner" hidden></div>
         <div class="marks" role="group" aria-label="Самочувствие" id="marks">
             <button class="mark" data-v="good" aria-pressed="false" id="m-good"><span class="dot"></span>Хорошо</button>
             <button class="mark" data-v="normal" aria-pressed="false" id="m-normal"><span class="dot"></span>Так себе</button>
@@ -355,8 +365,7 @@
 
     <!-- Вы и небо -->
     <section class="sec" aria-label="Вы и небо">
-        <h3>Вы и небо за 2 недели</h3>
-        <p class="sub">Подсвечены дни с бурей. Нажмите на день.</p>
+        <div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--kp0) 30%, transparent)" aria-hidden="true">🌌</span><div><h3>Вы и небо за 2 недели</h3><p class="sec-sub">Ваши отметки рядом с магнитными бурями. Дни бурь подсвечены — нажмите на день</p></div></div>
         <div class="sky" id="sky"></div>
         <div class="skyinfo" id="skyinfo"></div>
         <div class="legend">
@@ -369,14 +378,14 @@
 
     <!-- Вывод -->
     <section class="sec" aria-label="Что видно по записям">
-        <h3>Что видно по записям</h3>
+<div class="sec-head"><span class="sec-ic" style="--ic: var(--aurora-wash)" aria-hidden="true">🔍</span><div><h3>Что видно по записям</h3><p class="sec-sub">Влияют ли бури на ваше самочувствие</p></div></div>
         <p class="insight" id="insight"></p>
         <div class="meter"><span id="meter-t"></span><div class="meter-track"><i id="meter-i" style="width:0"></i></div></div>
     </section>
 
     <!-- Симптомы -->
     <section class="sec" id="sym-sec" aria-label="Когда что беспокоит" hidden>
-        <h3>Когда что беспокоит</h3>
+<div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--kp5) 18%, transparent)" aria-hidden="true">🤕</span><div><h3>Когда что беспокоит</h3><p class="sec-sub">Как часто бывает каждый симптом в бури и в спокойные дни</p></div></div>
         <div class="legend">
             <span><i class="you" style="background:var(--kp5);border-radius:3px"></i>в дни бурь</span>
             <span><i class="you" style="background:var(--kp0);border-radius:3px"></i>в спокойные дни</span>
@@ -386,7 +395,7 @@
 
     <!-- Давление (тонометр) -->
     <section class="sec" id="bp-sec" aria-label="Давление по тонометру">
-        <h3>Давление по тонометру</h3>
+<div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--bad) 15%, transparent)" aria-hidden="true">🩺</span><div><h3>Давление по тонометру</h3><p class="sec-sub">Ваши измерения и как давление меняется в дни бурь</p></div></div>
         <div class="follow" id="bp-has" hidden>
             <div class="bp-last"><span class="bp-num" id="bp-num"></span><span class="bp-meta" id="bp-meta"></span></div>
             <p class="hint" id="bp-level"></p>
@@ -408,7 +417,7 @@
 
     <!-- Впереди -->
     <section class="sec" aria-label="Впереди">
-        <h3>Впереди</h3>
+<div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--kp4) 22%, transparent)" aria-hidden="true">⏳</span><div><h3>Впереди</h3><p class="sec-sub">Бури в ближайшие 10 дней и напоминания</p></div></div>
         <div class="ahead" id="ahead"></div>
         <div class="toggle"><span>Предупредить вечером накануне бури</span><button class="sw" role="switch" aria-checked="true" aria-label="Предупредить накануне бури" id="sw-eve"></button></div>
         <div class="toggle"><span id="rem-label">Напоминать отметиться в 20:00</span><button class="sw" role="switch" aria-checked="false" aria-label="Ежедневное напоминание" id="sw-rem"></button></div>
@@ -417,7 +426,7 @@
 
     <!-- Календарь бурь -->
     <section class="sec" id="outlook-card" aria-label="Бури на месяц" hidden>
-        <h3>Бури на месяц</h3>
+<div class="sec-head"><span class="sec-ic" style="--ic: color-mix(in srgb, var(--kp4) 22%, transparent)" aria-hidden="true">🗓</span><div><h3>Бури на месяц</h3><p class="sec-sub">Долгосрочный прогноз NOAA по дням</p></div></div>
         <div class="cal-head"><div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div></div>
         <div class="cal-grid" id="cal-grid"></div>
         <div class="cal-detail" id="cal-detail">Нажмите на день, чтобы увидеть прогноз</div>
@@ -432,7 +441,8 @@
     </section>
 
     <!-- Инструменты -->
-    <section class="sec" aria-label="Поделиться и выгрузить" style="border-bottom:0">
+    <section class="sec" aria-label="Полезное">
+        <div class="sec-head"><span class="sec-ic" style="--ic: var(--well)" aria-hidden="true">🧰</span><div><h3>Полезное</h3><p class="sec-sub">Отчёт для врача, Stories, приглашение друзей</p></div></div>
         <div class="tools">
             <button class="tool" onclick="openBot('report')"><b>Отчёт для врача</b><span>PDF за 30 дней</span></button>
             <button class="tool" onclick="openStoryModal()"><b>Карточка в Stories</b><span>Погода и Kp сегодня</span></button>
@@ -494,7 +504,13 @@
     }
 
     // Связь с ботом — короткой ссылкой ?start=... (Mini App открыт из кнопки под сообщением)
+    let botBusy = false;
     function openBot(arg) {
+        if (botBusy) return;             // защита от двойного нажатия
+        botBusy = true;
+        setTimeout(() => { botBusy = false; }, 4000);
+        document.querySelectorAll('.primary, .sw').forEach(b => b.disabled = true);
+        setTimeout(() => document.querySelectorAll('.primary, .sw').forEach(b => b.disabled = false), 4000);
         triggerHaptic('medium');
         const bot = ((payloadData && payloadData.bot) || 'magni_buriBot').replace('@', '');
         const link = 'https://t.me/' + bot + '?start=' + arg;
@@ -739,7 +755,34 @@
         b.addEventListener('click', () => { triggerHaptic('light'); b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); });
         tagBox.appendChild(b);
     });
+    function cooldownLeftMin() {
+        const cd = payloadData && payloadData.cd;
+        if (!cd || !cd.active) return 0;
+        const now = Math.floor(Date.now() / 1000);
+        if (!cd.until) cd.until = now + (cd.rem_min || 0) * 60;
+        return Math.max(0, Math.ceil((cd.until - now) / 60));
+    }
+    function applyCooldown() {
+        const left = cooldownLeftMin();
+        const banner = document.getElementById('cd-banner');
+        document.getElementById('marks').classList.toggle('locked', left > 0);
+        if (left > 0) {
+            banner.innerHTML = '';
+            const b = document.createElement('b'); b.textContent = 'Следующая отметка — через ' + left + ' мин.';
+            banner.append(b, 'Самочувствие можно отмечать раз в час. Давление записывается без ограничений — в разделе «Давление по тонометру».');
+            banner.hidden = false;
+            document.getElementById('follow').hidden = true;
+            document.querySelectorAll('.mark').forEach(x => x.setAttribute('aria-pressed', 'false'));
+            current = null;
+        } else {
+            banner.hidden = true;
+            if (payloadData && payloadData.cd) payloadData.cd.active = false;
+        }
+    }
+    setInterval(applyCooldown, 30000);
+
     document.querySelectorAll('.mark').forEach(b => b.addEventListener('click', () => {
+        if (cooldownLeftMin() > 0) { triggerHaptic('error'); applyCooldown(); return; }
         triggerHaptic('light');
         current = b.dataset.v;
         document.querySelectorAll('.mark').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
@@ -765,7 +808,7 @@
     function showErr(id, text) { const e = document.getElementById(id); e.textContent = text || ''; e.hidden = !text; if (text) triggerHaptic('error'); }
 
     document.getElementById('save').addEventListener('click', () => {
-        if (!current) return;
+        if (!current || cooldownLeftMin() > 0) return;
         let arg = 'log_' + current;
         if (current !== 'good') {
             const codes = [...tagBox.querySelectorAll('.tag[aria-pressed="true"]')].map(t => t.dataset.code).join('');
@@ -798,7 +841,7 @@
         const b = document.createElement('b');
         b.textContent = 'Сегодня в ' + td.t + ' вы отметили «' + S_WORD[td.s] + '»' + (td.k !== null && td.k !== undefined ? ' при Kp ' + td.k : '');
         const st = payloadData && payloadData.st;
-        box.append(b, document.createTextNode((st >= 2 ? 'Серия: ' + st + ' дн. подряд. ' : '') + 'Можно изменить запись или добавить давление.'));
+        box.append(b, document.createTextNode(st >= 2 ? 'Серия: ' + st + ' дн. подряд.' : 'Спасибо, что отмечаетесь!'));
         box.hidden = false;
         setText('ask', 'Сегодня вы отметились');
     }
@@ -1237,6 +1280,7 @@
         if (P.w) renderWeather(P.w);
         if (P.kp) renderStorm(P.kp);
         renderToday(P.td);
+        applyCooldown();
         renderSky(P.h);
         renderInsight(P.an, P.tot || 0);
         renderSymptoms(P.sy, P.an);
